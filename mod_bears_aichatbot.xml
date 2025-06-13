@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     mod_bears_aichatbot - AI Knowledgebase Chatbot for Joomla 5
-    Copyright (C) 2024 BearLeeAble (N6REJ)
+    Copyright (C) 2025 BearLeeAble (N6REJ)
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 2 of the License, or
@@ -16,10 +16,10 @@
 <extension type="module" version="5.0" client="site" method="upgrade">
     <name>mod_bears_aichatbot</name>
     <author>BearLeeAble (N6REJ)</author>
-    <creationDate>2025.06.13</creationDate>
-    <copyright>Copyright (C) 2024 BearLeeAble (N6REJ). All rights reserved.</copyright>
+    <creationDate>2025 June 13</creationDate>
+    <copyright>Copyright (C) 2025 BearLeeAble (N6REJ). All rights reserved.</copyright>
     <license>GNU General Public License version 3 or later; see License.txt</license>
-    <version>2025.6.13</version>
+    <version>2025.06.13</version>
     <description>AI Knowledgebase Chatbot for Joomla 5 using open-source LLM</description>
     <files>
         <filename module="mod_bears_aichatbot">mod_bears_aichatbot.php</filename>
