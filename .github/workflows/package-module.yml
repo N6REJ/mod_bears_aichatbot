@@ -223,7 +223,7 @@ jobs:
           if [ ! -z "$FIXED" ]; then CHANGELOG_OUTPUT="${CHANGELOG_OUTPUT}### Fixed\n${FIXED}\n\n"; fi
           if [ ! -z "$REMOVED" ]; then CHANGELOG_OUTPUT="${CHANGELOG_OUTPUT}### Removed\n${REMOVED}\n\n"; fi
           if [ ! -z "$SECURITY" ]; then CHANGELOG_OUTPUT="${CHANGELOG_OUTPUT}### Security\n${SECURITY}\n\n"; fi
-          echo "changelog<>" >> $GITHUB_OUTPUT
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
           echo -e "$CHANGELOG_OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           cat CHANGELOG.md
