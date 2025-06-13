@@ -169,7 +169,8 @@ jobs:
               fi
             fi
           done
-      - name: Generate changelog if: steps.context.outputs.is_pr_merge == 'true' || steps.context.outputs.is_manual == 'true'
+      - name: Generate changelog
+        if: steps.context.outputs.is_pr_merge == 'true' || steps.context.outputs.is_manual == 'true'
         id: changelog
         run: |
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 --always $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
