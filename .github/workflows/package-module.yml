@@ -7,6 +7,24 @@ on:
       - main
   workflow_dispatch:
 
+# =============================
+# Universal Joomla Module Packaging Workflow
+# To use for your own module, change the variables below:
+#   AUTHOR: Your name or handle
+#   REPO:   Your repo path (org/repo)
+#   MODULE_NAME: Module folder and file prefix (e.g. mod_example)
+#   MODULE_XML:  Main XML file (e.g. mod_example.xml)
+#   COPYRIGHT_HOLDER: Copyright string (e.g. YourName (YourHandle))
+#   PHP_VERSION: PHP version to use (e.g. 8.1)
+# =============================
+env:
+  AUTHOR: "N6REJ"
+  REPO: "Bearsampp-development/sandbox/www/joomla-cms/modules/mod_bears_aichatbot"
+  MODULE_NAME: "mod_bears_aichatbot"
+  MODULE_XML: "mod_bears_aichatbot.xml"
+  COPYRIGHT_HOLDER: "BearLeeAble (N6REJ)"
+  PHP_VERSION: "8.1"
+
 jobs:
   update-version-and-release:
     runs-on: ubuntu-latest
@@ -53,7 +71,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '${{ env.PHP_VERSION }}'
       - name: Generate version and dates
         id: set_version
         run: |
@@ -78,15 +96,15 @@ jobs:
           echo "current_year=$CURRENT_YEAR" >> $GITHUB_OUTPUT
       - name: Update XML file in repository
         run: |
-          XML_FILE="mod_bears_aichatbot.xml"
+          XML_FILE="${{ env.MODULE_XML }}"
           if [ -f "$XML_FILE" ]; then
             cp "$XML_FILE" "${XML_FILE}.bak"
             sed -i "s|<version>.*</version>|<version>${{ steps.set_version.outputs.version }}</version>|g" "$XML_FILE"
             sed -i "s|<creationDate>.*</creationDate>|<creationDate>${{ steps.set_version.outputs.creation_date }}</creationDate>|g" "$XML_FILE"
             if [ "${{ steps.set_version.outputs.current_year }}" -gt "2025" ]; then
-              sed -i "s|Copyright (C) [0-9]\{4\} BearLeeAble (N6REJ)|Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} BearLeeAble (N6REJ)|g" "$XML_FILE"
+              sed -i "s|Copyright (C) [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }}|Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$XML_FILE"
             else
-              sed -i "s|Copyright (C) [0-9]\{4\} BearLeeAble (N6REJ)|Copyright (C) ${{ steps.set_version.outputs.current_year }} BearLeeAble (N6REJ)|g" "$XML_FILE"
+              sed -i "s|Copyright (C) [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }}|Copyright (C) ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$XML_FILE"
             fi
           else
             echo "::error::XML file not found in repository"
@@ -94,7 +112,7 @@ jobs:
           fi
       - name: Cleanup backup files
         run: |
-          rm -f mod_bears_aichatbot.xml.bak updates.xml.bak CHANGELOG.md.bak || true
+          rm -f ${{ env.MODULE_XML }}.bak updates.xml.bak CHANGELOG.md.bak || true
       - name: Update PHP file version
         run: |
           find . -name "*.php" | while read -r PHP_FILE; do
@@ -103,6 +121,7 @@ jobs:
                 sed -i -E "s|(@version[ ]+).*|\1${{ steps.set_version.outputs.version }}|g" "$PHP_FILE"
                 sed -i -E "s|(Version[ ]*:[ ]*).*|\1${{ steps.set_version.outputs.version }}|g" "$PHP_FILE"
                 sed -i -E "s|(\* Version:)[0-9]{4}\.[0-9]{2}\.[0-9]{2}|\1${{ steps.set_version.outputs.version }}|g" "$PHP_FILE"
+                sed -i "s|@copyright.*|@copyright Copyright (C) ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$PHP_FILE"
               fi
             fi
           done
@@ -120,11 +139,11 @@ jobs:
           find . -name "*.ini" -o -name "*.sys.ini" | while read -r LANG_FILE; do
             if [ -f "$LANG_FILE" ]; then
               if [ "${{ steps.set_version.outputs.current_year }}" -gt "2025" ]; then
-                sed -i "s|; Copyright (C) [0-9]\{4\} - [0-9]\{4\} N6REJ|; Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} N6REJ|g" "$LANG_FILE"
-                sed -i "s|; Copyright (C) [0-9]\{4\} N6REJ|; Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} N6REJ|g" "$LANG_FILE"
+                sed -i "s|; Copyright (C) [0-9]\{4\} - [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }}|; Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$LANG_FILE"
+                sed -i "s|; Copyright (C) [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }}|; Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$LANG_FILE"
               else
-                sed -i "s|; Copyright (C) [0-9]\{4\} - [0-9]\{4\} N6REJ|; Copyright (C) ${{ steps.set_version.outputs.current_year }} N6REJ|g" "$LANG_FILE"
-                sed -i "s|; Copyright (C) [0-9]\{4\} N6REJ|; Copyright (C) ${{ steps.set_version.outputs.current_year }} N6REJ|g" "$LANG_FILE"
+                sed -i "s|; Copyright (C) [0-9]\{4\} - [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }}|; Copyright (C) ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$LANG_FILE"
+                sed -i "s|; Copyright (C) [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }}|; Copyright (C) ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$LANG_FILE"
               fi
             fi
           done
@@ -134,15 +153,15 @@ jobs:
             if [ -f "$CSS_FILE" ]; then
               if grep -q "Copyright (C)" "$CSS_FILE"; then
                 if [ "${{ steps.set_version.outputs.current_year }}" -gt "2025" ]; then
-                  sed -i "s|/\* Copyright (C) [0-9]\{4\} N6REJ \*/|/* Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} N6REJ */|g" "$CSS_FILE"
-                  sed -i "s|/\* Copyright (C) [0-9]\{4\} - [0-9]\{4\} N6REJ \*/|/* Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} N6REJ */|g" "$CSS_FILE"
-                  sed -i "s| \* Copyright (C) [0-9]\{4\} N6REJ| * Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} N6REJ|g" "$CSS_FILE"
-                  sed -i "s| \* Copyright (C) [0-9]\{4\} - [0-9]\{4\} N6REJ| * Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} N6REJ|g" "$CSS_FILE"
+                  sed -i "s|/\* Copyright (C) [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }} \*/|/* Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }} */|g" "$CSS_FILE"
+                  sed -i "s|/\* Copyright (C) [0-9]\{4\} - [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }} \*/|/* Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }} */|g" "$CSS_FILE"
+                  sed -i "s| \* Copyright (C) [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }}| * Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$CSS_FILE"
+                  sed -i "s| \* Copyright (C) [0-9]\{4\} - [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }}| * Copyright (C) 2025 - ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$CSS_FILE"
                 else
-                  sed -i "s|/\* Copyright (C) [0-9]\{4\} N6REJ \*/|/* Copyright (C) ${{ steps.set_version.outputs.current_year }} N6REJ */|g" "$CSS_FILE"
-                  sed -i "s|/\* Copyright (C) [0-9]\{4\} - [0-9]\{4\} N6REJ \*/|/* Copyright (C) ${{ steps.set_version.outputs.current_year }} N6REJ */|g" "$CSS_FILE"
-                  sed -i "s| \* Copyright (C) [0-9]\{4\} N6REJ| * Copyright (C) ${{ steps.set_version.outputs.current_year }} N6REJ|g" "$CSS_FILE"
-                  sed -i "s| \* Copyright (C) [0-9]\{4\} - [0-9]\{4\} N6REJ| * Copyright (C) ${{ steps.set_version.outputs.current_year }} N6REJ|g" "$CSS_FILE"
+                  sed -i "s|/\* Copyright (C) [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }} \*/|/* Copyright (C) ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }} */|g" "$CSS_FILE"
+                  sed -i "s|/\* Copyright (C) [0-9]\{4\} - [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }} \*/|/* Copyright (C) ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }} */|g" "$CSS_FILE"
+                  sed -i "s| \* Copyright (C) [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }}| * Copyright (C) ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$CSS_FILE"
+                  sed -i "s| \* Copyright (C) [0-9]\{4\} - [0-9]\{4\} ${{ env.COPYRIGHT_HOLDER }}| * Copyright (C) ${{ steps.set_version.outputs.current_year }} ${{ env.COPYRIGHT_HOLDER }}|g" "$CSS_FILE"
                 fi
               fi
               if grep -q "\* Version:[0-9]\{4\}\.[0-9]\{2\}\.[0-9]\{2\}" "$CSS_FILE"; then
@@ -231,32 +250,32 @@ jobs:
           if git diff --exit-code; then echo "No changes to commit"; else git add .; git commit -m "Update version to ${{ steps.set_version.outputs.version }}, creation date to ${{ steps.set_version.outputs.creation_date }}, and copyright year to ${{ steps.set_version.outputs.current_year }}"; git push origin main; fi
       - name: Create package directory
         if: steps.context.outputs.is_pr_merge == 'true' || steps.context.outputs.is_manual == 'true'
-        run: mkdir -p package/mod_bears_aichatbot
+        run: mkdir -p package/${{ env.MODULE_NAME }}
       - name: Copy module files
         if: steps.context.outputs.is_pr_merge == 'true' || steps.context.outputs.is_manual == 'true'
         run: |
-          cp mod_bears_aichatbot.php package/mod_bears_aichatbot/
-          cp mod_bears_aichatbot.xml package/mod_bears_aichatbot/
-          cp helper.php package/mod_bears_aichatbot/
-          if [ -f "License.txt" ]; then cp License.txt package/mod_bears_aichatbot/; fi
-          if [ -f "favicon.ico" ]; then cp favicon.ico package/mod_bears_aichatbot/; fi
-          if [ -f "CHANGELOG.md" ]; then cp CHANGELOG.md package/mod_bears_aichatbot/; fi
-          if [ -d "css" ]; then cp -r css package/mod_bears_aichatbot/; fi
-          if [ -d "js" ]; then cp -r js package/mod_bears_aichatbot/; fi
-          if [ -d "tmpl" ]; then cp -r tmpl package/mod_bears_aichatbot/; fi
-          if [ -d "language" ]; then cp -r language package/mod_bears_aichatbot/; fi
-          echo "Package contents:"; ls -la package/mod_bears_aichatbot/
+          cp ${{ env.MODULE_NAME }}.php package/${{ env.MODULE_NAME }}/
+          cp ${{ env.MODULE_XML }} package/${{ env.MODULE_NAME }}/
+          cp helper.php package/${{ env.MODULE_NAME }}/
+          if [ -f "License.txt" ]; then cp License.txt package/${{ env.MODULE_NAME }}/; fi
+          if [ -f "favicon.ico" ]; then cp favicon.ico package/${{ env.MODULE_NAME }}/; fi
+          if [ -f "CHANGELOG.md" ]; then cp CHANGELOG.md package/${{ env.MODULE_NAME }}/; fi
+          if [ -d "css" ]; then cp -r css package/${{ env.MODULE_NAME }}/; fi
+          if [ -d "js" ]; then cp -r js package/${{ env.MODULE_NAME }}/; fi
+          if [ -d "tmpl" ]; then cp -r tmpl package/${{ env.MODULE_NAME }}/; fi
+          if [ -d "language" ]; then cp -r language package/${{ env.MODULE_NAME }}/; fi
+          echo "Package contents:"; ls -la package/${{ env.MODULE_NAME }}/
       - name: Generate directory tree
         if: steps.context.outputs.is_pr_merge == 'true' || steps.context.outputs.is_manual == 'true'
         run: |
           apt-get update && apt-get install -y tree
-          tree package/mod_bears_aichatbot > package/directory-structure.txt
+          tree package/${{ env.MODULE_NAME }} > package/directory-structure.txt
       - name: Create ZIP archive
         if: steps.context.outputs.is_pr_merge == 'true' || steps.context.outputs.is_manual == 'true'
         run: |
           cd package
-          zip -r mod_bears_aichatbot_${{ steps.set_version.outputs.version }}.zip mod_bears_aichatbot
-          echo "Created ZIP archive: mod_bears_aichatbot_${{ steps.set_version.outputs.version }}.zip"
+          zip -r ${{ env.MODULE_NAME }}_${{ steps.set_version.outputs.version }}.zip ${{ env.MODULE_NAME }}
+          echo "Created ZIP archive: ${{ env.MODULE_NAME }}_${{ steps.set_version.outputs.version }}.zip"
       - name: Create GitHub Release
         if: steps.context.outputs.is_pr_merge == 'true' || steps.context.outputs.is_manual == 'true'
         id: create_release
@@ -265,7 +284,7 @@ jobs:
           tag_name: ${{ steps.set_version.outputs.version }}
           name: Bears AI Chatbot ${{ steps.set_version.outputs.version }}
           files: |
-            package/mod_bears_aichatbot_${{ steps.set_version.outputs.version }}.zip
+            package/${{ env.MODULE_NAME }}_${{ steps.set_version.outputs.version }}.zip
             package/directory-structure.txt
           draft: false
           prerelease: false
@@ -285,7 +304,7 @@ jobs:
           UPDATES_XML="updates.xml"
           if [ -f "$UPDATES_XML" ]; then
             cp "$UPDATES_XML" "${UPDATES_XML}.bak"
-            DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.set_version.outputs.version }}/mod_bears_aichatbot_${{ steps.set_version.outputs.version }}.zip"
+            DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.set_version.outputs.version }}/${{ env.MODULE_NAME }}_${{ steps.set_version.outputs.version }}.zip"
             sed -i "s|<version>.*</version>|<version>${{ steps.set_version.outputs.version }}</version>|g" "$UPDATES_XML"
             sed -i "s|<downloadurl type=\"full\" format=\"zip\">.*</downloadurl>|<downloadurl type=\"full\" format=\"zip\">$DOWNLOAD_URL</downloadurl>|g" "$UPDATES_XML"
             echo "Updated updates.xml file with new version and download URL"
@@ -298,14 +317,14 @@ jobs:
           fi
       - name: Final cleanup of backup files
         run: |
-          rm -f mod_bears_aichatbot.xml.bak updates.xml.bak CHANGELOG.md.bak || true
+          rm -f ${{ env.MODULE_XML }}.bak updates.xml.bak CHANGELOG.md.bak || true
       - name: Upload to GitHub Artifacts
         if: steps.context.outputs.is_pr_merge == 'true' || steps.context.outputs.is_manual == 'true'
         id: upload_artifact
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: mod_bears_aichatbot_${{ steps.set_version.outputs.version }}
-          path: package/mod_bears_aichatbot_${{ steps.set_version.outputs.version }}.zip
+          name: ${{ env.MODULE_NAME }}_${{ steps.set_version.outputs.version }}
+          path: package/${{ env.MODULE_NAME }}_${{ steps.set_version.outputs.version }}.zip
           retention-days: 90
           if-no-files-found: warn
       - name: Artifact Download Information
@@ -313,4 +332,4 @@ jobs:
         run: |
           echo "::notice::The module package has been uploaded as an artifact."
           echo "::notice::You can download it from the Actions tab of this workflow run."
-          echo "::notice::Go to Actions → This workflow → This run → Artifacts section → Download 'mod_bears_aichatbot_${{ steps.set_version.outputs.version }}'"
+          echo "::notice::Go to Actions → This workflow → This run → Artifacts section → Download '${{ env.MODULE_NAME }}_${{ steps.set_version.outputs.version }}'"
