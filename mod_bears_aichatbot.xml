@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    mod_bears_aichatbot - AI Knowledgebase Chatbot for Joomla 5
+    Copyright (C) 2024 BearLeeAble (N6REJ)
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 2 of the License, or
+    (at your option) any later version.
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<extension type="module" version="5.0" client="site" method="upgrade">
+    <name>mod_bears_aichatbot</name>
+    <author>BearLeeAble (N6REJ)</author>
+    <creationDate>2025.06.13</creationDate>
+    <copyright>Copyright (C) 2024 BearLeeAble (N6REJ). All rights reserved.</copyright>
+    <license>GNU General Public License version 3 or later; see License.txt</license>
+    <version>2025.6.13</version>
+    <description>AI Knowledgebase Chatbot for Joomla 5 using open-source LLM</description>
+    <files>
+        <filename module="mod_bears_aichatbot">mod_bears_aichatbot.php</filename>
+        <filename>helper.php</filename>
+        <filename>License.txt</filename>
+        <filename>index.html</filename>
+        <filename>favicon.ico</filename>
+        <folder>tmpl</folder>
+        <folder>css</folder>
+        <folder>js</folder>
+        <folder>language</folder>
+    </files>
+    <languages>
+        <language tag="en-GB">language/en-GB/en-GB.mod_bears_aichatbot.ini</language>
+        <language tag="en-GB">language/en-GB/en-GB.mod_bears_aichatbot.sys.ini</language>
+    </languages>
+    <config>
+        <fields name="params">
+            <fieldset name="basic">
+                <field name="use_kunena" type="radio" default="1" label="Use Kunena Forum as Knowledge Source" description="Enable or disable Kunena forum post search as part of the knowledgebase.">
+                    <option value="1">JYES</option>
+                    <option value="0">JNO</option>
+                </field>
+                <field name="chat_position" type="list" default="bottom" label="Chat Interface Position" description="Select the position of the chat interface on the page.">
+                    <option value="top">Top</option>
+                    <option value="right">Right</option>
+                    <option value="bottom">Bottom</option>
+                    <option value="left">Left</option>
+                </field>
+                <field name="chat_margin" type="text" default="20" label="Chat Margin Offset (px)" description="Set the margin offset for the chat interface (in pixels)."/>
+            </fieldset>
+        </fields>
+    </config>
+</extension>
