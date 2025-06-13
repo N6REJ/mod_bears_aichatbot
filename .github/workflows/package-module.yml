@@ -19,7 +19,7 @@ on:
 # =============================
 env:
   AUTHOR: "N6REJ"
-  REPO: "Bearsampp-development/sandbox/www/joomla-cms/modules/mod_bears_aichatbot"
+  REPO: "N6REJ/mod_bears_aichatbot"
   MODULE_NAME: "mod_bears_aichatbot"
   MODULE_XML: "mod_bears_aichatbot.xml"
   COPYRIGHT_HOLDER: "BearLeeAble (N6REJ)"
