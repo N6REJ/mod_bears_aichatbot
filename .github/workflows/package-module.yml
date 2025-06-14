@@ -24,6 +24,7 @@ env:
   MODULE_XML: "mod_bears_aichatbot.xml"
   COPYRIGHT_HOLDER: "BearLeeAble (N6REJ)"
   PHP_VERSION: "8.1"
+  MODULE_TOKEN: "GH_PAT"  # Set your token secret name here (default: GH_PAT)
 
 jobs:
   update-version-and-release:
@@ -65,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets[env.MODULE_TOKEN] }}
           ref: ${{ (steps.context.outputs.is_pr_merge == 'true' && 'main') || (steps.context.outputs.is_pr_update == 'true' && github.event.pull_request.head.ref) || 'main' }}
           repository: ${{ (steps.context.outputs.is_pr_update == 'true' && github.event.pull_request.head.repo.full_name) || github.repository }}
       - name: Set up PHP
@@ -298,7 +299,7 @@ jobs:
             ${{ steps.changelog.outputs.changelog }}
             [View full changelog](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
         env:
-          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_PAT: ${{ secrets[env.MODULE_TOKEN] }}
       - name: Update Joomla update server XML
         if: steps.context.outputs.is_pr_merge == 'true' || steps.context.outputs.is_manual == 'true'
         run: |
