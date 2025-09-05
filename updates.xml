@@ -2,7 +2,7 @@
 <updates>
     <update>
         <name>mod_bears_aichatbot</name>
-        <description>AI Knowledgebase Chatbot for Joomla 5</description>
+        <description>Bears AI Knowledgebase Chatbot</description>
         <element>mod_bears_aichatbot</element>
         <type>module</type>
         <version>2025.06.13</version>

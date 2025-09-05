@@ -66,3 +66,20 @@
 .bears-aichatbot-form button:hover {
     background: #1565c0;
 }
+
+/* Popup toggle button and hidden state */
+.bears-aichatbot-hidden { display: none; }
+.bears-aichatbot-toggle {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    font-weight: 700;
+    font-family: Arial, sans-serif;
+    cursor: pointer;
+}
+.bears-aichatbot-toggle:hover { background: #1565c0; }
+.bears-aichatbot-toggle:focus { outline: none; box-shadow: 0 0 0 3px rgba(25,118,210,.35); }
