@@ -14,13 +14,13 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <extension type="module" version="5.0" client="site" method="upgrade">
-    <name>mod_bears_aichatbot</name>
+    <name>Bears AI Chatbot</name>
     <author>N6REJ</author>
     <creationDate>2025.9.4</creationDate>
     <copyright>Copyright (C) 2025 N6REJ. All rights reserved.</copyright>
     <license>GNU General Public License version 3 or later; see License.txt</license>
     <version>2025.9.4</version>
-    <description>Bears AI Knowledgebase Chatbot for Joomla 5</description>
+    <description>MOD_BEARS_AICHATBOT_XML_DESCRIPTION</description>
     <files>
         <filename module="mod_bears_aichatbot">mod_bears_aichatbot.php</filename>
         <filename>helper.php</filename>
@@ -38,31 +38,28 @@
     <config>
         <fields name="params">
             <fieldset name="basic">
-                <field name="use_kunena" type="radio" default="1" label="Use Kunena Forum as Knowledge Source" description="Enable or disable Kunena forum post search as part of the knowledgebase.">
-                    <option value="1">JYES</option>
-                    <option value="0">JNO</option>
+                <field name="use_kunena"
+                       type="radio"
+                       default="1"
+                       class="btn-group btn-group-yesno"
+                       label="MOD_BEARS_AICHATBOT_USE_KUNENA_LABEL"
+                       description="MOD_BEARS_AICHATBOT_USE_KUNENA_DESC">
+                            <option value="1">JYES</option>
+                            <option value="0">JNO</option>
                 </field>
-                <field name="content_categories" type="category" extension="com_content" label="Article Categories" description="Select one or more Joomla article categories for the knowledge base." multiple="true" />
-                <field name="intro_text" type="textarea" label="Intro Text" description="Welcome message shown when user first opens the chatbot." rows="3" cols="50" default="Hello! I'm your AI assistant. Ask me anything about our knowledge base and I'll help you find the information you need." />
+                <field name="content_categories" type="category" extension="com_content" label="MOD_BEARS_AICHATBOT_CONTENT_CATEGORIES_LABEL" description="MOD_BEARS_AICHATBOT_CONTENT_CATEGORIES_DESC" multiple="true" />
+                <field name="intro_text" type="textarea" label="MOD_BEARS_AICHATBOT_INTRO_TEXT_LABEL" description="MOD_BEARS_AICHATBOT_INTRO_TEXT_DESC" rows="3" cols="50" default="MOD_BEARS_AICHATBOT_INTRO_TEXT_DEFAULT" filter="raw" />
 
-                <field name="chat_position" type="list" default="bottom-right" label="Chat Position" description="Choose where the chat appears. Only bottom-left or bottom-right are supported.">
-                    <option value="bottom-right">Bottom Right</option>
-                    <option value="bottom-left">Bottom Left</option>
+                <field name="chat_position" type="list" default="bottom-right" label="MOD_BEARS_AICHATBOT_CHAT_POSITION_LABEL" description="MOD_BEARS_AICHATBOT_CHAT_POSITION_DESC">
+                    <option value="bottom-right">MOD_BEARS_AICHATBOT_POSITION_BOTTOM_RIGHT</option>
+                    <option value="bottom-left">MOD_BEARS_AICHATBOT_POSITION_BOTTOM_LEFT</option>
                 </field>
-                <field name="chat_offset_bottom" type="number" default="20" label="Bottom Offset (px)" description="Distance from the bottom edge in pixels." min="0"/>
-                <field name="chat_offset_side" type="number" default="20" label="Side Offset (px)" description="Distance from the left/right edge in pixels." min="0"/>
-
-                <!-- IONOS AI Model Hub settings -->
-                <field name="ionos_model" type="list" default="" label="Model" description="Select the IONOS model to use.">
-                    <option value="">Select a model</option>
-                    <option value="meta-llama/Meta-Llama-3-70B-Instruct">Llama 3 70B Instruct</option>
-                    <option value="meta-llama/Meta-Llama-3-8B-Instruct">Llama 3 8B Instruct</option>
-                    <option value="mistralai/Mixtral-8x7B-Instruct-v0.1">Mixtral 8x7B Instruct</option>
-                    <option value="mistralai/Mistral-7B-Instruct-v0.2">Mistral 7B Instruct</option>
-                    <option value="intel/granite-7b-instruct">Granite 7B Instruct</option>
-                </field>
-                <field name="ionos_token_id" type="text" label="IONOS Token ID" description="Your IONOS token ID."/>
-                <field name="ionos_token" type="textarea" label="IONOS Token" description="Your IONOS access token (plain text)." filter="raw" rows="4"/>
+                <field name="chat_offset_bottom" type="number" default="20" label="MOD_BEARS_AICHATBOT_OFFSET_BOTTOM_LABEL" description="MOD_BEARS_AICHATBOT_OFFSET_BOTTOM_DESC" min="0"/>
+                <field name="chat_offset_side" type="number" default="20" label="MOD_BEARS_AICHATBOT_OFFSET_SIDE_LABEL" description="MOD_BEARS_AICHATBOT_OFFSET_SIDE_DESC" min="0"/>
+            </fieldset>
+            <fieldset name="configuration" label="MOD_BEARS_AICHATBOT_FIELDSET_CONFIGURATION">
+                <field name="ionos_token_id" type="text" label="MOD_BEARS_AICHATBOT_TOKEN_ID_LABEL" description="MOD_BEARS_AICHATBOT_TOKEN_ID_DESC"/>
+                <field name="ionos_token" type="textarea" label="MOD_BEARS_AICHATBOT_TOKEN_LABEL" description="MOD_BEARS_AICHATBOT_TOKEN_DESC" filter="raw" rows="4"/>
             </fieldset>
         </fields>
     </config>

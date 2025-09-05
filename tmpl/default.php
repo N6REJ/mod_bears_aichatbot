@@ -12,7 +12,7 @@ defined('_JEXEC') or die;
 $chatPosition = $chatbotData['chat_position'];
 $bottomOffset = (int) $chatbotData['chat_offset_bottom'];
 $sideOffset = (int) $chatbotData['chat_offset_side'];
-$introText = htmlspecialchars($chatbotData['intro_text'], ENT_QUOTES, 'UTF-8');
+$introText = json_encode($chatbotData['intro_text'], JSON_HEX_APOS | JSON_HEX_QUOT);
 $positionStyle = "bottom: {$bottomOffset}px; " . ($chatPosition === 'bottom-right' ? "right: {$sideOffset}px;" : "left: {$sideOffset}px;");
 $app = \Joomla\CMS\Factory::getApplication();
 $menu = $app->getMenu();
@@ -39,6 +39,11 @@ $itemId = $active ? (int) $active->id : 0;
   var messages = document.getElementById('bears-aichatbot-messages');
   var introShown = false;
   
+  // Function to scroll messages to bottom
+  function scrollToBottom() {
+    messages.scrollTop = messages.scrollHeight;
+  }
+  
   toggle.addEventListener('click', function(){
     var hidden = panel.classList.toggle('bears-aichatbot-hidden');
     toggle.setAttribute('aria-expanded', String(!hidden));
@@ -47,8 +52,9 @@ $itemId = $active ? (int) $active->id : 0;
     if (!hidden && !introShown) {
       var introMsg = document.createElement('div');
       introMsg.className = 'bears-aichatbot-message ai intro';
-      introMsg.textContent = '<?php echo $introText; ?>';
+      introMsg.textContent = <?php echo $introText; ?>;
       messages.appendChild(introMsg);
+      scrollToBottom();
       introShown = true;
     }
   });
@@ -62,56 +68,69 @@ $itemId = $active ? (int) $active->id : 0;
       userMsg.className = 'bears-aichatbot-message user';
       userMsg.textContent = msg;
       messages.appendChild(userMsg);
+      scrollToBottom();
       input.value = '';
       var aiMsg = document.createElement('div');
       aiMsg.className = 'bears-aichatbot-message ai';
       aiMsg.textContent = '...';
       messages.appendChild(aiMsg);
+      scrollToBottom();
 
       // AJAX call to com_ajax -> helper::ask (IONOS backend)
       var xhr = new XMLHttpRequest();
-      var url = 'index.php?option=com_ajax&module=bears_aichatbot&method=ask&format=json&Itemid=<?php echo $itemId; ?>&q=' + encodeURIComponent(msg);
-      xhr.open('GET', url, true);
+      var url = 'index.php?option=com_ajax&module=bears_aichatbot&method=ask&format=json&Itemid=<?php echo $itemId; ?>&_=' + Date.now();
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      xhr.timeout = 30000;
+
       xhr.onreadystatechange = function() {
           if (xhr.readyState === 4) {
-              try {
-                  var res = JSON.parse(xhr.responseText || '{}');
-                  var text = '';
+              var text = '';
+              if (xhr.status >= 200 && xhr.status < 300) {
+                  try {
+                      var res = JSON.parse(xhr.responseText || '{}');
 
-                  if (res && res.success) {
-                      if (Array.isArray(res.data) && res.data.length > 0) {
-                          text = typeof res.data[0] === 'string' ? res.data[0] : JSON.stringify(res.data[0]);
-                      } else if (typeof res.data === 'string') {
-                          text = res.data;
-                      } else if (res.message) {
-                          text = String(res.message);
-                      } else if (Array.isArray(res.messages) && res.messages.length) {
-                          text = res.messages.map(function(m){ return m.message || String(m); }).join('\n');
-                      }
-                  }
-
-                  if (!text) {
-                      if (xhr.status >= 200 && xhr.status < 300) {
-                          if (res && res.error) {
-                              text = typeof res.error === 'string' ? res.error : (res.error.message || JSON.stringify(res.error));
-                          } else if (res && res.message) {
-                              text = String(res.message);
+                      if (res && res.success && res.data) {
+                          if (Array.isArray(res.data) && res.data.length > 0) {
+                              text = String(res.data[0]);
+                          } else if (typeof res.data === 'string') {
+                              text = res.data;
                           } else {
-                              text = 'No response from server';
+                              text = JSON.stringify(res.data);
                           }
+                      } else if (res && res.message) {
+                          text = String(res.message);
+                      } else if (res && res.data) {
+                          text = String(res.data);
+                      } else if (typeof res === 'string') {
+                          text = res;
                       } else {
-                          text = 'HTTP ' + xhr.status + ' ' + xhr.statusText;
+                          text = 'Empty response from server';
                       }
+                  } catch (e) {
+                      text = xhr.responseText || 'No response from server';
+                      console.error('AJAX parse error', e, xhr.responseText);
                   }
-
-                  aiMsg.textContent = text;
-              } catch (e) {
-                  aiMsg.textContent = 'Parse error: ' + e.message;
-                  console.error('AJAX parse error', e, xhr.responseText);
+              } else {
+                  text = 'HTTP ' + xhr.status + ' ' + xhr.statusText;
               }
+              aiMsg.textContent = text;
+              scrollToBottom();
           }
       };
-      xhr.send();
+
+      xhr.onerror = function() {
+          aiMsg.textContent = 'Network error contacting server';
+          scrollToBottom();
+      };
+
+      xhr.ontimeout = function() {
+          aiMsg.textContent = 'Request timed out';
+          scrollToBottom();
+      };
+
+      xhr.send('q=' + encodeURIComponent(msg));
   });
 })();
 </script>

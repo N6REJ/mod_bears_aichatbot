@@ -19,6 +19,11 @@ if (!class_exists('ContentHelperRoute') && class_exists('Joomla\\Component\\Cont
 
 class ModBearsAichatbotHelper
 {
+    public const DEFAULT_IONOS_MODEL = 'intel/granite-7b-instruct';
+    // SSL settings: keep verification ON by default; allow an insecure fallback for dev if needed
+    public const CURL_VERIFY_SSL = true;               // set to false to always skip SSL verification (not recommended)
+    public const CURL_ALLOW_INSECURE_FALLBACK = true;  // if true, retry once without verification on SSL cert errors
+
     /**
      * Provide template configuration and simple data.
      *
@@ -247,5 +252,205 @@ class ModBearsAichatbotHelper
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $text = preg_replace('/\s+/u', ' ', $text);
         return trim($text);
+    }
+
+    /**
+     * AJAX method to handle chatbot questions
+     * Called via index.php?option=com_ajax&module=bears_aichatbot&method=ask&format=json
+     */
+    public static function askAjax()
+    {
+        try {
+            $app = Factory::getApplication();
+            $input = $app->input;
+            
+            // Get the question from the request
+            $question = $input->getString('q', '');
+            
+            if (empty($question)) {
+                return 'No question provided';
+            }
+
+            // For testing, return a simple response first
+            // return 'Test response for question: ' . $question;
+
+            // Get module parameters - we need to find the module instance
+            $db = Factory::getDbo();
+            $query = $db->getQuery(true)
+                ->select('params')
+                ->from('#__modules')
+                ->where('module = ' . $db->quote('mod_bears_aichatbot'))
+                ->where('published = 1');
+            
+            $db->setQuery($query);
+            $paramsJson = $db->loadResult();
+            
+            if (!$paramsJson) {
+                return 'Module configuration not found';
+            }
+            
+            $params = new \Joomla\Registry\Registry($paramsJson);
+            
+            // Get IONOS configuration
+            $model = self::DEFAULT_IONOS_MODEL;
+            $tokenId = $params->get('ionos_token_id', '');
+            $token = $params->get('ionos_token', '');
+            
+            if (empty($tokenId) || empty($token)) {
+                return 'IONOS configuration incomplete. Please configure the token ID and token in module settings.';
+            }
+            
+            // Get knowledge base (0 means no limit)
+            $kb = self::getKnowledgebase($params, 0);
+            
+            if (empty($kb['items'])) {
+                return 'No knowledge base items found. Please configure article categories in the module settings.';
+            }
+            
+            // Build a comprehensive prompt from all KB items with a safety cap
+            $prompt = self::buildPromptFromKb($kb['items'], $question, 150000);
+            
+            // Call IONOS API
+            $response = self::callIonosAPI($model, $tokenId, $token, $prompt);
+            
+            return $response;
+            
+        } catch (\Exception $e) {
+            return 'Error: ' . $e->getMessage();
+        }
+    }
+    
+    /**
+     * Build a single prompt string from KB items, capped by maxChars.
+     */
+    protected static function buildPromptFromKb(array $items, string $question, int $maxChars = 150000): string
+    {
+        $normalize = function(string $s): string {
+            $s = str_replace(["\r\n", "\r"], "\n", $s);
+            return trim($s);
+        };
+
+        $header = "Knowledge Base:\n\n";
+        $body = '';
+        foreach ($items as $item) {
+            $title = $normalize((string)($item['title'] ?? ''));
+            $url   = $normalize((string)($item['url'] ?? ''));
+            $text  = $normalize((string)($item['text'] ?? ''));
+
+            $chunk = "----\nTitle: {$title}\n";
+            if ($url !== '') {
+                $chunk .= "URL: {$url}\n";
+            }
+            $chunk .= "Content:\n{$text}\n\n";
+
+            // Stop if exceeding budget
+            if (strlen($header) + strlen($body) + strlen($chunk) > $maxChars) {
+                break;
+            }
+            $body .= $chunk;
+        }
+
+        $questionPart = "User Question: " . $normalize($question) . "\n\n";
+        $instructions = "Instructions: Answer the user's question concisely using only the information from the Knowledge Base above. If the answer cannot be found there, say that it is not available in the knowledge base and suggest the closest relevant information if any.";
+
+        // If the body is empty due to strict cap, fallback to first items with truncated content
+        if ($body === '') {
+            foreach ($items as $item) {
+                $title = $normalize((string)($item['title'] ?? ''));
+                $url   = $normalize((string)($item['url'] ?? ''));
+                $text  = $normalize((string)($item['text'] ?? ''));
+                $text  = substr($text, 0, max(0, $maxChars - strlen($header) - 1000));
+                $body  = "----\nTitle: {$title}\n" . ($url ? "URL: {$url}\n" : '') . "Content:\n{$text}\n\n";
+                break;
+            }
+        }
+
+        $prompt = $header . $body . "\n" . $questionPart . $instructions;
+
+        // Final hard cap as a safety
+        if (strlen($prompt) > $maxChars) {
+            $prompt = substr($prompt, 0, $maxChars);
+        }
+
+        return $prompt;
+    }
+
+    /**
+     * Call IONOS AI Model Hub API
+     */
+    protected static function callIonosAPI($model, $tokenId, $token, $prompt)
+    {
+        $url = 'https://api.ionos.com/ai/v1/models/' . urlencode($model) . '/completions';
+
+        $data = [
+            'prompt' => $prompt,
+            'max_tokens' => 500,
+            'temperature' => 0.7,
+            'top_p' => 0.9,
+        ];
+
+        $headers = [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $token,
+            'X-Token-ID: ' . $tokenId,
+        ];
+
+        $doRequest = function (bool $verifyPeer) use ($url, $headers, $data) {
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode($data),
+                CURLOPT_HTTPHEADER => $headers,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_SSL_VERIFYPEER => $verifyPeer,
+                CURLOPT_SSL_VERIFYHOST => $verifyPeer ? 2 : 0,
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+
+            return [$response, $httpCode, $error];
+        };
+
+        // First attempt with configured verification setting
+        [$response, $httpCode, $error] = $doRequest(self::CURL_VERIFY_SSL);
+
+        // If SSL error and allowed to fallback, retry once without verification
+        if ($error && stripos($error, 'SSL certificate') !== false && self::CURL_VERIFY_SSL && self::CURL_ALLOW_INSECURE_FALLBACK) {
+            [$response, $httpCode, $error] = $doRequest(false);
+        }
+
+        if ($error) {
+            throw new \Exception('cURL error: ' . $error . (self::CURL_VERIFY_SSL ? '' : ' (SSL verification disabled)'));
+        }
+
+        if ($httpCode !== 200) {
+            throw new \Exception('HTTP error: ' . $httpCode . ' - ' . $response);
+        }
+
+        $result = json_decode($response, true);
+
+        if (!$result) {
+            throw new \Exception('Invalid JSON response from IONOS API');
+        }
+
+        if (isset($result['error'])) {
+            $msg = is_array($result['error']) && isset($result['error']['message']) ? $result['error']['message'] : 'Unknown error';
+            throw new \Exception('IONOS API error: ' . $msg);
+        }
+
+        // Extract the response text
+        if (isset($result['choices'][0]['text'])) {
+            return trim($result['choices'][0]['text']);
+        }
+        if (isset($result['choices'][0]['message']['content'])) {
+            return trim($result['choices'][0]['message']['content']);
+        }
+
+        throw new \Exception('Unexpected response format from IONOS API');
     }
 }
