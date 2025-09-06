@@ -48,7 +48,7 @@
                 <field name="content_categories" type="category" extension="com_content" label="MOD_BEARS_AICHATBOT_CONTENT_CATEGORIES_LABEL" description="MOD_BEARS_AICHATBOT_CONTENT_CATEGORIES_DESC" multiple="true" />
                 <field name="article_limit" type="number" default="500" min="1" label="MOD_BEARS_AICHATBOT_ARTICLE_LIMIT_LABEL" description="MOD_BEARS_AICHATBOT_ARTICLE_LIMIT_DESC" />
                 <field name="additional_urls" type="textarea" label="MOD_BEARS_AICHATBOT_ADDITIONAL_URLS_LABEL" description="MOD_BEARS_AICHATBOT_ADDITIONAL_URLS_DESC" rows="3" cols="50" filter="raw" />
-                <field name="intro_text" type="textarea" label="MOD_BEARS_AICHATBOT_INTRO_TEXT_LABEL" description="MOD_BEARS_AICHATBOT_INTRO_TEXT_DESC" rows="3" cols="50" default="MOD_BEARS_AICHATBOT_INTRO_TEXT_DEFAULT" filter="raw" />
+                <field name="intro_text" type="textarea" label="MOD_BEARS_AICHATBOT_INTRO_TEXT_LABEL" description="MOD_BEARS_AICHATBOT_INTRO_TEXT_DESC" rows="3" cols="50" default="MOD_BEARS_AICHATBOT_INTRO_TEXT_DEFAULT" translate_default="true" filter="raw" />
 
                 <field name="chat_position" type="list" default="bottom-right" label="MOD_BEARS_AICHATBOT_CHAT_POSITION_LABEL" description="MOD_BEARS_AICHATBOT_CHAT_POSITION_DESC">
                     <option value="bottom-right">MOD_BEARS_AICHATBOT_POSITION_BOTTOM_RIGHT</option>
