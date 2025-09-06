@@ -26,8 +26,6 @@
         <filename>helper.php</filename>
         <filename>License.txt</filename>
         <folder>tmpl</folder>
-        <folder>css</folder>
-        <folder>js</folder>
         <folder>language</folder>
         <folder>media</folder>
     </files>
