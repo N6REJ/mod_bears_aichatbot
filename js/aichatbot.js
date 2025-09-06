@@ -1,10 +1,39 @@
 (function () {
+  function ensureStyles() {
+    try {
+      if (document.getElementById('bears-aichatbot-inline-style')) return;
+      const css = `
+.bears-aichatbot--closed .bears-aichatbot-window{display:none}
+.bears-aichatbot--open .bears-aichatbot-toggle{display:none}
+.bears-aichatbot--open .bears-aichatbot-window{width:var(--bears-open-width, min(400px,90vw));height:var(--bears-open-height, 70vh);resize:both;overflow:auto}
+.bears-aichatbot-toggle{width:56px;height:56px;border-radius:50%;background:#0b74de;color:#fff;border:none;box-shadow:0 6px 18px rgba(0,0,0,.2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px}
+.bears-aichatbot-header{position:relative}
+.bears-aichatbot-close{position:absolute;right:8px;top:8px;background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer}
+/* middle side positions */
+.bears-aichatbot[data-position="middle-right"]{right:var(--bears-offset-side,20px);top:50%;transform:translateY(-50%)}
+.bears-aichatbot[data-position="middle-left"]{left:var(--bears-offset-side,20px);top:50%;transform:translateY(-50%)}
+/* vertical toggle for middle positions */
+.bears-aichatbot[data-position="middle-right"] .bears-aichatbot-toggle,
+.bears-aichatbot[data-position="middle-left"] .bears-aichatbot-toggle{writing-mode:vertical-rl;text-orientation:mixed;width:42px;height:auto;padding:10px 8px;border-radius:10px;font-size:14px}
+@media (max-width: 767px){.bears-aichatbot{display:none !important}}
+`;
+      const style = document.createElement('style');
+      style.id = 'bears-aichatbot-inline-style';
+      style.type = 'text/css';
+      style.appendChild(document.createTextNode(css));
+      document.head.appendChild(style);
+    } catch(e) {}
+  }
   function init(instance) {
     const ajaxUrl = instance.getAttribute('data-ajax-url');
     const moduleId = instance.getAttribute('data-module-id');
     const position = instance.getAttribute('data-position') || 'bottom-right';
     const offsetBottom = parseInt(instance.getAttribute('data-offset-bottom') || '20', 10);
     const offsetSide = parseInt(instance.getAttribute('data-offset-side') || '20', 10);
+    const openWidth = parseInt(instance.getAttribute('data-open-width') || '400', 10);
+    const openHeight = parseInt(instance.getAttribute('data-open-height') || '500', 10);
+    const openHeightPercent = parseInt(instance.getAttribute('data-open-height-percent') || '50', 10);
+    const buttonLabel = instance.getAttribute('data-button-label') || 'Knowledgebase';
     try {
       console.debug('[Bears AI Chatbot] init', { moduleId, ajaxUrl, position, offsetBottom, offsetSide });
     } catch (e) {}
@@ -14,6 +43,56 @@
     instance.style.setProperty('--bears-offset-side', offsetSide + 'px');
 
     instance.setAttribute('data-position', position);
+
+    // Apply open width/height as CSS variables for dynamic sizing
+    instance.style.setProperty('--bears-open-width', `min(${openWidth}px, 90vw)`);
+    // Use percentage of viewport height by default (openHeightPercent), fallback to px if provided
+    const hPercent = Math.min(Math.max(openHeightPercent, 10), 100);
+    instance.style.setProperty('--bears-open-height', `min(${openHeight}px, ${hPercent}vh)`);
+
+    // Inject styles and set initial state (closed)
+    ensureStyles();
+    instance.classList.add('bears-aichatbot--closed');
+
+    // Create toggle (bubble) and header close button
+    const toggle = document.createElement('button');
+    toggle.className = 'bears-aichatbot-toggle';
+    toggle.setAttribute('aria-label', 'Open chat');
+    toggle.title = 'Chat';
+    // Vertical labeled toggle for middle positions
+    if (position === 'middle-right' || position === 'middle-left') {
+      toggle.textContent = buttonLabel;
+    } else {
+      toggle.textContent = '💬';
+    }
+    instance.appendChild(toggle);
+
+    const headerEl = instance.querySelector('.bears-aichatbot-header');
+    let closeBtn = headerEl && headerEl.querySelector('.bears-aichatbot-close');
+    if (!closeBtn && headerEl) {
+      closeBtn = document.createElement('button');
+      closeBtn.className = 'bears-aichatbot-close';
+      closeBtn.setAttribute('aria-label', 'Close chat');
+      closeBtn.type = 'button';
+      closeBtn.textContent = '×';
+      headerEl.appendChild(closeBtn);
+    }
+
+    function openChat() {
+      instance.classList.add('bears-aichatbot--open');
+      instance.classList.remove('bears-aichatbot--closed');
+      // Anchor to bottom when opened
+      instance.style.removeProperty('top');
+      instance.style.removeProperty('transform');
+      instance.style.setProperty('bottom', `var(--bears-offset-bottom, 20px)`);
+      try { input && input.focus(); } catch(e) {}
+    }
+    function closeChat() {
+      instance.classList.remove('bears-aichatbot--open');
+      instance.classList.add('bears-aichatbot--closed');
+    }
+    toggle.addEventListener('click', openChat);
+    if (closeBtn) closeBtn.addEventListener('click', closeChat);
 
     const messages = instance.querySelector('.bears-aichatbot-messages');
     const input = instance.querySelector('.bears-aichatbot-text');
@@ -45,6 +124,7 @@
     async function sendMessage() {
       const text = (input.value || '').trim();
       if (!text) return;
+      openChat();
       try { console.debug('[Bears AI Chatbot] sending message', { moduleId, text }); } catch (e) {}
       appendMessage('user', text);
       input.value = '';
