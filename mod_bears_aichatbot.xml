@@ -19,7 +19,7 @@
     <creationDate>2025 September 06</creationDate>
     <copyright>Copyright (C) 2025 N6REJ. All rights reserved.</copyright>
     <license>GNU General Public License version 3 or later; see License.txt</license>
-    <version>2025.09.06.3</version>
+    <version>2025.09.06.4</version>
     <description>MOD_BEARS_AICHATBOT_XML_DESCRIPTION</description>
     <files>
         <filename module="mod_bears_aichatbot">mod_bears_aichatbot.php</filename>
