@@ -30,13 +30,14 @@
         <folder>css</folder>
         <folder>js</folder>
         <folder>language</folder>
+        <folder>fields</folder>
     </files>
     <languages>
         <language tag="en-GB">language/en-GB/en-GB.mod_bears_aichatbot.ini</language>
         <language tag="en-GB">language/en-GB/en-GB.mod_bears_aichatbot.sys.ini</language>
     </languages>
     <config>
-        <fields name="params">
+        <fields name="params" addfieldpath="/modules/mod_bears_aichatbot/fields">
             <fieldset name="basic">
                 <field name="use_kunena"
                        type="radio"
@@ -48,6 +49,8 @@
                             <option value="0">JNO</option>
                 </field>
                 <field name="content_categories" type="category" extension="com_content" label="MOD_BEARS_AICHATBOT_CONTENT_CATEGORIES_LABEL" description="MOD_BEARS_AICHATBOT_CONTENT_CATEGORIES_DESC" multiple="true" />
+                <field name="article_limit" type="number" default="500" min="1" label="MOD_BEARS_AICHATBOT_ARTICLE_LIMIT_LABEL" description="MOD_BEARS_AICHATBOT_ARTICLE_LIMIT_DESC" />
+                <field name="additional_urls" type="textarea" label="MOD_BEARS_AICHATBOT_ADDITIONAL_URLS_LABEL" description="MOD_BEARS_AICHATBOT_ADDITIONAL_URLS_DESC" rows="3" cols="50" filter="raw" />
                 <field name="intro_text" type="textarea" label="MOD_BEARS_AICHATBOT_INTRO_TEXT_LABEL" description="MOD_BEARS_AICHATBOT_INTRO_TEXT_DESC" rows="3" cols="50" default="MOD_BEARS_AICHATBOT_INTRO_TEXT_DEFAULT" filter="raw" />
 
                 <field name="chat_position" type="list" default="bottom-right" label="MOD_BEARS_AICHATBOT_CHAT_POSITION_LABEL" description="MOD_BEARS_AICHATBOT_CHAT_POSITION_DESC">
@@ -60,6 +63,8 @@
             <fieldset name="configuration" label="MOD_BEARS_AICHATBOT_FIELDSET_CONFIGURATION">
                 <field name="ionos_token_id" type="text" label="MOD_BEARS_AICHATBOT_TOKEN_ID_LABEL" description="MOD_BEARS_AICHATBOT_TOKEN_ID_DESC"/>
                 <field name="ionos_token" type="textarea" label="MOD_BEARS_AICHATBOT_TOKEN_LABEL" description="MOD_BEARS_AICHATBOT_TOKEN_DESC" filter="raw" rows="4"/>
+                <field name="ionos_endpoint" type="text" label="MOD_BEARS_AICHATBOT_ENDPOINT_LABEL" description="MOD_BEARS_AICHATBOT_ENDPOINT_DESC" default="https://openai.inference.de-txl.ionos.com/v1/chat/completions"/>
+                <field name="ionos_model" type="ionosmodels" label="MOD_BEARS_AICHATBOT_MODEL_LABEL" description="MOD_BEARS_AICHATBOT_MODEL_DESC" default=""/>
             </fieldset>
         </fields>
     </config>
