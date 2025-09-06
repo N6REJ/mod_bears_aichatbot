@@ -29,14 +29,14 @@
         <folder>css</folder>
         <folder>js</folder>
         <folder>language</folder>
-        <folder>fields</folder>
+        <folder>media</folder>
     </files>
     <languages>
         <language tag="en-GB">language/en-GB/en-GB.mod_bears_aichatbot.ini</language>
         <language tag="en-GB">language/en-GB/en-GB.mod_bears_aichatbot.sys.ini</language>
     </languages>
     <config>
-        <fields name="params" addfieldpath="/modules/mod_bears_aichatbot/fields">
+        <fields name="params" addfieldpath="/modules/mod_bears_aichatbot/media/fields">
             <fieldset name="basic">
                 <field name="use_kunena"
                        type="radio"
