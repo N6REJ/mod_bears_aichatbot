@@ -27,7 +27,7 @@
 }
 
 .bears-aichatbot-header {
-  background: #0b74de;
+  background: #5CA0FF;
   color: #fff;
   padding: 10px 12px;
 }
@@ -58,7 +58,7 @@
   white-space: pre-wrap;
 }
 .message.user .bubble {
-  background: #0b74de;
+  background: #5CA0FF;
   color: #fff;
   border-bottom-right-radius: 4px;
 }

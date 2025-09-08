@@ -16,6 +16,12 @@
 .bears-aichatbot[data-position="middle-right"] .bears-aichatbot-toggle,
 .bears-aichatbot[data-position="middle-left"] .bears-aichatbot-toggle{writing-mode:vertical-rl;text-orientation:mixed;width:42px;height:auto;padding:10px 8px;border-radius:10px;font-size:14px}
 @media (max-width: 767px){.bears-aichatbot{display:none !important}}
+/* formatted message elements */
+.bears-aichatbot .bubble a{color:#0b74de;text-decoration:underline;word-break:break-all}
+.bears-aichatbot .bubble pre{background:#f6f8fa;padding:8px;border-radius:6px;overflow:auto}
+.bears-aichatbot .bubble code{background:#f2f4f7;padding:2px 4px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.bears-aichatbot .bubble ul{margin:0.5em 0;padding-left:1.25em}
+.bears-aichatbot .bubble li{margin:0.25em 0}
 `;
       const style = document.createElement('style');
       style.id = 'bears-aichatbot-inline-style';
@@ -24,6 +30,77 @@
       document.head.appendChild(style);
     } catch(e) {}
   }
+  // Formatting helpers to render AI responses with basic Markdown and clickable links
+  function formatAnswer(text) {
+    if (!text) return '';
+    let placeholderIndex = 0;
+    const blocks = [];
+    // Extract fenced code blocks and replace with placeholders
+    let out = String(text).replace(/```([\s\S]*?)```/g, function (_, code) {
+      const token = '[[[CODEBLOCK_' + (placeholderIndex++) + ']]]';
+      blocks.push(code);
+      return token;
+    });
+
+    // Escape HTML for remaining text
+    out = escapeHtml(out);
+
+    // Inline code `...`
+    out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Markdown links [text](url)
+    out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1<\/a>');
+
+    // Autolink any remaining plain URLs
+    out = autolink(out);
+
+    // Restore fenced code blocks
+    out = out.replace(/\[\[\[CODEBLOCK_(\d+)\]\]\]/g, function (_, idx) {
+      const code = blocks[Number(idx)] || '';
+      return '<pre><code>' + escapeHtml(code) + '<\/code><\/pre>';
+    });
+
+    // Turn leading dash/star lines into simple lists
+    out = listify(out);
+
+    return out;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (s) {
+      switch (s) {
+        case '&': return '&amp;';
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '"': return '&quot;';
+        case "'": return '&#39;';
+        default: return s;
+      }
+    });
+  }
+
+  function autolink(str) {
+    return String(str).replace(/(https?:\/\/[^\s<]+)(?![^<]*>)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1<\/a>');
+  }
+
+  function listify(html) {
+    const lines = String(html).split(/\r?\n/);
+    const out = [];
+    let inList = false;
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i];
+      if (/^\s*[-*]\s+/.test(ln)) {
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push('<li>' + ln.replace(/^\s*[-*]\s+/, '') + '</li>');
+      } else {
+        if (inList) { out.push('</ul>'); inList = false; }
+        out.push(ln);
+      }
+    }
+    if (inList) out.push('</ul>');
+    return out.join('\n');
+  }
+
   function init(instance) {
     const ajaxUrl = instance.getAttribute('data-ajax-url');
     const moduleId = instance.getAttribute('data-module-id');
@@ -103,7 +180,11 @@
       wrap.className = 'message ' + (role === 'user' ? 'user' : 'bot');
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
-      bubble.textContent = text;
+      if (role === 'bot') {
+        bubble.innerHTML = formatAnswer(String(text || ''));
+      } else {
+        bubble.textContent = String(text || '');
+      }
       wrap.appendChild(bubble);
       messages.appendChild(wrap);
       // Auto-scroll to bottom
