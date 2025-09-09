@@ -43,8 +43,9 @@ class ModBearsAichatbotHelper
             return ['success' => false, 'error' => 'Empty message'];
         }
 
-        // Build knowledge base context from selected categories
-        $context = self::buildKnowledgeContext($params, $message);
+        // Build knowledge base context from selected categories (strict mode enforced)
+        $strict = true;
+        $context = self::buildKnowledgeContext($params, $message, $strict);
         $kbStats = self::$lastContextStats;
 
         // IONOS configuration (read from module params defined in XML)
@@ -105,16 +106,31 @@ class ModBearsAichatbotHelper
             }
         }
         
+        // If strict and no relevant KB found, refuse without calling the model
+        $hasKb = (($kbStats['article_count'] ?? 0) + ($kbStats['kunena_count'] ?? 0) + ($kbStats['url_count'] ?? 0)) > 0;
+        if ($strict && (!$hasKb || stripos($context, 'No knowledge available') !== false)) {
+            return ['success' => true, 'answer' => "I don't know based on the provided dataset.", 'kb' => $kbStats];
+        }
+
         // System prompt includes the KB context from Joomla articles
-        $systemPrompt = "You are a helpful AI assistant for a Joomla website. Use ONLY the provided knowledge base context when possible. If the context lacks the answer, say you don't know and suggest related topics.\n\n"
+        $systemPrompt = ($strict ? (
+            "You are a knowledge base assistant for this Joomla site. Answer using ONLY the content inside <kb>. If the information is not fully supported by <kb>, respond exactly: 'I don't know based on the provided dataset.' Do not use prior knowledge, do not browse the web, and do not guess.\n\n"
+            . "IMPORTANT INSTRUCTIONS:\n"
+            . "1. Use only the <kb> content for facts and instructions.\n"
+            . "2. When referencing pages, only use URLs present in the site structure below.\n"
+            . "3. The website URL is: " . $siteUrl . "\n"
+            . "4. Format links as clickable Markdown: [Link Text](URL)\n"
+            . "5. NEVER make up URLs or content not present in <kb> or the site structure.\n"
+        ) : (
+            "You are a helpful AI assistant for this Joomla site. Use ONLY the provided knowledge base context when possible. If the context lacks the answer, say you don't know and suggest related topics.\n\n"
             . "IMPORTANT INSTRUCTIONS:\n"
             . "1. When referencing pages, use the actual URLs from the site structure provided below.\n"
             . "2. The website URL is: " . $siteUrl . "\n"
             . "3. Format links as clickable Markdown: [Link Text](URL)\n"
             . "4. NEVER make up URLs. Only use URLs from the site structure or knowledge base.\n"
             . "5. When you mention a topic that appears in the site structure, provide the actual link.\n"
-            . $sitemapInfo
-            . "\nKnowledge base context follows between <kb> tags.\n<kb>" . $context . '</kb>';
+        ));
+        $systemPrompt .= $sitemapInfo . "\nKnowledge base context follows between <kb> tags.\n<kb>" . $context . '</kb>';
 
         $payload = [
             'model'       => $model,
@@ -123,7 +139,7 @@ class ModBearsAichatbotHelper
                 ['role' => 'user',   'content' => $message],
             ],
             'max_tokens'  => 512,
-            'temperature' => 0.2,
+            'temperature' => $strict ? 0.0 : 0.2,
         ];
 
         // OpenAI-compatible chat completions endpoint (IONOS Model Hub)
@@ -204,7 +220,7 @@ class ModBearsAichatbotHelper
      * @param Registry $params
      * @return string
      */
-    protected static function buildKnowledgeContext(Registry $params, string $userMessage): string
+    protected static function buildKnowledgeContext(Registry $params, string $userMessage, bool $strict = true): string
     {
         $db = Factory::getContainer()->get('DatabaseDriver');
 
@@ -218,6 +234,7 @@ class ModBearsAichatbotHelper
             'urls'          => [],
             'note'          => '',
         ];
+        $hadLikes = false;
 
         // Budget for context to avoid exceeding token limits
         $maxTotal = 30000;
@@ -326,7 +343,8 @@ class ModBearsAichatbotHelper
                     $likes[] = '(' . $db->quoteName('title') . ' LIKE ' . $like . ' OR ' . $db->quoteName('introtext') . ' LIKE ' . $like . ' OR ' . $db->quoteName('fulltext') . ' LIKE ' . $like . ')';
                     if (count($likes) >= $maxTerms) break;
                 }
-                if (!empty($likes)) {
+                $hadLikes = !empty($likes);
+                if ($hadLikes) {
                     $query->where('(' . implode(' OR ', $likes) . ')');
                 }
             }
@@ -336,8 +354,13 @@ class ModBearsAichatbotHelper
             $db->setQuery($query, 0, $limit);
             $items = (array) $db->loadAssocList();
 
-            // Fallback to recent items if no keyword matches
-            if (!$items) {
+            // In strict mode, if we had no usable keywords, treat as no relevant matches
+            if ($strict && !$hadLikes) {
+                $items = [];
+            }
+
+            // Fallback to recent items if no keyword matches (disabled in strict mode)
+            if (!$items && !$strict) {
                 $query = $db->getQuery(true)
                     ->select($db->quoteName(['id', 'title', 'introtext', 'fulltext']))
                     ->from($db->quoteName('#__content'))
@@ -352,15 +375,46 @@ class ModBearsAichatbotHelper
             }
         }
 
-        // If no categories are selected or no items found, fall back to site-wide published articles
+        // If no categories are selected or no items found, do a site-wide search
         if (empty($items)) {
-            $qAll = $db->getQuery(true)
-                ->select($db->quoteName(['id', 'title', 'introtext', 'fulltext']))
-                ->from($db->quoteName('#__content'))
-                ->where($db->quoteName('state') . ' = 1')
-                ->order($db->escape('modified DESC, created DESC'));
-            $db->setQuery($qAll, 0, $limit);
-            $items = (array) $db->loadAssocList();
+            if ($strict) {
+                // Site-wide keyword-filtered search in strict mode
+                $qAll = $db->getQuery(true)
+                    ->select($db->quoteName(['id', 'title', 'introtext', 'fulltext']))
+                    ->from($db->quoteName('#__content'))
+                    ->where($db->quoteName('state') . ' = 1');
+
+                $terms = preg_split('/\s+/', mb_strtolower(trim($userMessage)));
+                $likes = [];
+                $maxTerms = 5;
+                if (!empty($terms)) {
+                    foreach ($terms as $t) {
+                        $t = trim($t);
+                        if (mb_strlen($t) < 3) continue;
+                        $kw = $db->escape($t, true);
+                        $like = $db->quote('%' . $kw . '%', false);
+                        $likes[] = '(' . $db->quoteName('title') . ' LIKE ' . $like . ' OR ' . $db->quoteName('introtext') . ' LIKE ' . $like . ' OR ' . $db->quoteName('fulltext') . ' LIKE ' . $like . ')';
+                        if (count($likes) >= $maxTerms) break;
+                    }
+                }
+                if (!empty($likes)) {
+                    $qAll->where('(' . implode(' OR ', $likes) . ')');
+                    $qAll->order($db->escape('modified DESC, created DESC'));
+                    $db->setQuery($qAll, 0, $limit);
+                    $items = (array) $db->loadAssocList();
+                } else {
+                    // No usable keywords; leave items empty to trigger refusal
+                    $items = [];
+                }
+            } else {
+                $qAll = $db->getQuery(true)
+                    ->select($db->quoteName(['id', 'title', 'introtext', 'fulltext']))
+                    ->from($db->quoteName('#__content'))
+                    ->where($db->quoteName('state') . ' = 1')
+                    ->order($db->escape('modified DESC, created DESC'));
+                $db->setQuery($qAll, 0, $limit);
+                $items = (array) $db->loadAssocList();
+            }
         }
 
         if ($items) {
@@ -424,6 +478,8 @@ class ModBearsAichatbotHelper
                 // Kunena likely not installed or tables missing; ignore silently
             }
         }
+
+
 
         if (empty($contextParts)) {
             self::$lastContextStats['note'] = self::$lastContextStats['note'] ?: 'No knowledge available from selected sources.';
