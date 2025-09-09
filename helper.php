@@ -84,8 +84,37 @@ class ModBearsAichatbotHelper
             return ['success' => false, 'error' => 'Missing: ' . implode(', ', $missing)];
         }
 
+        // Get site URL for better link generation
+        $siteUrl = \Joomla\CMS\Uri\Uri::root();
+        
+        // Build sitemap if enabled
+        $sitemapInfo = '';
+        if ((int) $params->get('include_sitemap', 1) === 1) {
+            $sitemapUrl = trim((string) $params->get('sitemap_url', ''));
+            
+            // Try to use external sitemap if URL provided
+            if ($sitemapUrl !== '') {
+                $sitemap = self::fetchExternalSitemap($sitemapUrl);
+            } else {
+                // Otherwise build from menu structure
+                $sitemap = self::buildSitemap();
+            }
+            
+            if (!empty($sitemap)) {
+                $sitemapInfo = "\n\nSITE STRUCTURE (use these actual URLs when referencing pages):\n" . $sitemap . "\n";
+            }
+        }
+        
         // System prompt includes the KB context from Joomla articles
-        $systemPrompt = "You are a helpful AI assistant for a Joomla website. Use ONLY the provided knowledge base context when possible. If the context lacks the answer, say you don't know and suggest related topics. Knowledge base context follows between <kb> tags.\n<kb>" . $context . '</kb>';
+        $systemPrompt = "You are a helpful AI assistant for a Joomla website. Use ONLY the provided knowledge base context when possible. If the context lacks the answer, say you don't know and suggest related topics.\n\n"
+            . "IMPORTANT INSTRUCTIONS:\n"
+            . "1. When referencing pages, use the actual URLs from the site structure provided below.\n"
+            . "2. The website URL is: " . $siteUrl . "\n"
+            . "3. Format links as clickable Markdown: [Link Text](URL)\n"
+            . "4. NEVER make up URLs. Only use URLs from the site structure or knowledge base.\n"
+            . "5. When you mention a topic that appears in the site structure, provide the actual link.\n"
+            . $sitemapInfo
+            . "\nKnowledge base context follows between <kb> tags.\n<kb>" . $context . '</kb>';
 
         $payload = [
             'model'       => $model,
@@ -402,5 +431,345 @@ class ModBearsAichatbotHelper
         }
 
         return implode("\n---\n", $contextParts);
+    }
+    
+    /**
+     * Build a sitemap of the site's menu structure
+     * 
+     * @return string
+     */
+    protected static function buildSitemap(): string
+    {
+        try {
+            $db = Factory::getContainer()->get('DatabaseDriver');
+            $app = Factory::getApplication();
+            $siteUrl = \Joomla\CMS\Uri\Uri::root();
+            
+            // Get all published menu items
+            $query = $db->getQuery(true)
+                ->select($db->quoteName(['id', 'title', 'alias', 'path', 'link', 'type', 'parent_id', 'level']))
+                ->from($db->quoteName('#__menu'))
+                ->where($db->quoteName('published') . ' = 1')
+                ->where($db->quoteName('client_id') . ' = 0') // Site menus only
+                ->where($db->quoteName('type') . ' != ' . $db->quote('separator'))
+                ->where($db->quoteName('type') . ' != ' . $db->quote('heading'))
+                ->order($db->quoteName('lft'));
+            
+            $db->setQuery($query);
+            $items = $db->loadObjectList();
+            
+            if (empty($items)) {
+                return '';
+            }
+            
+            $sitemap = [];
+            $router = $app->getRouter();
+            
+            foreach ($items as $item) {
+                // Skip system items
+                if ($item->type === 'alias' || $item->type === 'url') {
+                    continue;
+                }
+                
+                // Build the URL
+                $url = '';
+                if ($item->type === 'component') {
+                    // Parse the link
+                    $uri = new \Joomla\CMS\Uri\Uri($item->link);
+                    $uri->setVar('Itemid', $item->id);
+                    
+                    // Use the path for SEF URLs
+                    if ($item->path && $item->path !== '') {
+                        $url = $siteUrl . $item->path;
+                    } else {
+                        // Fallback to building from link
+                        $url = $siteUrl . 'index.php?' . $uri->getQuery();
+                    }
+                }
+                
+                if ($url !== '') {
+                    // Add indentation based on level
+                    $indent = str_repeat('  ', $item->level - 1);
+                    $sitemap[] = $indent . '- ' . $item->title . ': ' . $url;
+                }
+            }
+            
+            // Also add common article categories as potential URLs
+            $catQuery = $db->getQuery(true)
+                ->select($db->quoteName(['id', 'title', 'alias', 'path']))
+                ->from($db->quoteName('#__categories'))
+                ->where($db->quoteName('extension') . ' = ' . $db->quote('com_content'))
+                ->where($db->quoteName('published') . ' = 1')
+                ->where($db->quoteName('level') . ' > 0')
+                ->order($db->quoteName('lft'));
+            
+            $db->setQuery($catQuery);
+            $categories = $db->loadObjectList();
+            
+            if (!empty($categories)) {
+                $sitemap[] = "\nContent Categories:";
+                foreach ($categories as $cat) {
+                    if ($cat->path && $cat->path !== 'uncategorised') {
+                        $url = $siteUrl . $cat->path;
+                        $sitemap[] = '  - ' . $cat->title . ': ' . $url;
+                    }
+                }
+            }
+            
+            return implode("\n", $sitemap);
+            
+        } catch (\Throwable $e) {
+            // Return empty string if sitemap generation fails
+            return '';
+        }
+    }
+    
+    /**
+     * Fetch and parse an external sitemap (HTML or XML format)
+     * 
+     * @param string $sitemapUrl
+     * @return string
+     */
+    protected static function fetchExternalSitemap(string $sitemapUrl): string
+    {
+        try {
+            $http = HttpFactory::getHttp();
+            
+            // First try to fetch the sitemap
+            $response = $http->get($sitemapUrl, ['Accept' => 'text/html, application/xml, text/xml, */*']);
+            
+            if ($response->code < 200 || $response->code >= 300) {
+                // Fall back to building from menu
+                return self::buildSitemap();
+            }
+            
+            // Check if it's XML or HTML
+            $body = $response->body;
+            $isXml = (strpos($body, '<?xml') !== false || strpos($body, '<urlset') !== false || strpos($body, '<sitemapindex') !== false);
+            
+            if ($isXml) {
+                // Parse as XML sitemap
+                return self::parseXmlSitemap($body);
+            } else {
+                // Parse as HTML sitemap
+                return self::parseHtmlSitemap($body);
+            }
+            
+        } catch (\Throwable $e) {
+            // Fall back to building from menu if external sitemap fails
+            return self::buildSitemap();
+        }
+    }
+    
+    /**
+     * Parse an HTML sitemap page (supports OSMap and similar structures)
+     * 
+     * @param string $html
+     * @return string
+     */
+    protected static function parseHtmlSitemap(string $html): string
+    {
+        try {
+            $sitemap = [];
+            $urlCount = 0;
+            $maxUrls = 150; // Increased limit for comprehensive sitemaps
+            
+            // Use DOMDocument to parse HTML
+            $dom = new \DOMDocument();
+            @$dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+            $xpath = new \DOMXPath($dom);
+            
+            // Look for OSMap structure first (more specific)
+            $osmapLinks = $xpath->query('//a[@class="osmap-link"]');
+            
+            // If no OSMap links found, fall back to all links
+            $links = $osmapLinks->length > 0 ? $osmapLinks : $xpath->query('//a[@href]');
+            
+            if ($links->length === 0) {
+                return self::buildSitemap();
+            }
+            
+            $baseUrl = \Joomla\CMS\Uri\Uri::root();
+            $processedUrls = [];
+            
+            foreach ($links as $link) {
+                if ($urlCount >= $maxUrls) break;
+                
+                $href = $link->getAttribute('href');
+                $text = trim($link->textContent);
+                
+                // Skip empty links, anchors, or javascript
+                if (empty($href) || $href === '#' || empty($text) || strpos($href, 'javascript:') === 0) {
+                    continue;
+                }
+                
+                // Skip modal triggers and special actions
+                if ($link->hasAttribute('data-bs-toggle') || $link->hasAttribute('data-toggle')) {
+                    continue;
+                }
+                
+                // Make absolute URL if relative
+                if (strpos($href, 'http') !== 0) {
+                    if (strpos($href, '/') === 0) {
+                        // Absolute path
+                        $parsedBase = parse_url($baseUrl);
+                        $href = $parsedBase['scheme'] . '://' . $parsedBase['host'] . $href;
+                    } else {
+                        // Relative path
+                        $href = rtrim($baseUrl, '/') . '/' . $href;
+                    }
+                }
+                
+                // Skip if already processed
+                if (in_array($href, $processedUrls)) {
+                    continue;
+                }
+                
+                // Skip external links (not from same domain)
+                $parsedUrl = parse_url($href);
+                $parsedBase = parse_url($baseUrl);
+                if (isset($parsedUrl['host']) && isset($parsedBase['host'])) {
+                    if ($parsedUrl['host'] !== $parsedBase['host']) {
+                        continue;
+                    }
+                }
+                
+                // Skip certain file types
+                if (preg_match('/\.(pdf|doc|docx|xls|xlsx|zip|rar|jpg|jpeg|png|gif|mp3|mp4)$/i', $href)) {
+                    continue;
+                }
+                
+                // Get hierarchy level for better organization (OSMap specific)
+                $level = 0;
+                $parent = $link->parentNode;
+                while ($parent) {
+                    if ($parent->nodeName === 'ul' && $parent->hasAttribute('class')) {
+                        $class = $parent->getAttribute('class');
+                        if (preg_match('/level_(\d+)/', $class, $matches)) {
+                            $level = (int) $matches[1];
+                            break;
+                        }
+                    }
+                    $parent = $parent->parentNode;
+                }
+                
+                // Add indentation based on level
+                $indent = str_repeat('  ', $level);
+                
+                $processedUrls[] = $href;
+                $sitemap[] = $indent . '- ' . $text . ': ' . $href;
+                $urlCount++;
+            }
+            
+            if (!empty($sitemap)) {
+                return implode("\n", $sitemap);
+            }
+            
+            return self::buildSitemap();
+            
+        } catch (\Throwable $e) {
+            return self::buildSitemap();
+        }
+    }
+    
+    /**
+     * Parse an XML sitemap
+     * 
+     * @param string $xmlContent
+     * @return string
+     */
+    protected static function parseXmlSitemap(string $xmlContent): string
+    {
+        try {
+            $xml = simplexml_load_string($xmlContent);
+            if (!$xml) {
+                return self::buildSitemap();
+            }
+            
+            $sitemap = [];
+            $urlCount = 0;
+            $maxUrls = 100; // Limit to prevent overwhelming the AI
+            
+            // Handle standard sitemap format
+            if (isset($xml->url)) {
+                foreach ($xml->url as $url) {
+                    if ($urlCount >= $maxUrls) break;
+                    
+                    $loc = (string) $url->loc;
+                    if ($loc === '') continue;
+                    
+                    // Try to extract a title from the URL path
+                    $parsedUrl = parse_url($loc);
+                    $path = isset($parsedUrl['path']) ? trim($parsedUrl['path'], '/') : '';
+                    
+                    if ($path === '' || $path === 'index.php') {
+                        $title = 'Home';
+                    } else {
+                        // Convert path to title (e.g., "about-us" becomes "About Us")
+                        $segments = explode('/', $path);
+                        $lastSegment = end($segments);
+                        $title = ucwords(str_replace(['-', '_'], ' ', $lastSegment));
+                    }
+                    
+                    $sitemap[] = '- ' . $title . ': ' . $loc;
+                    $urlCount++;
+                }
+            }
+            
+            // Handle sitemap index format (multiple sitemaps)
+            if (isset($xml->sitemap)) {
+                foreach ($xml->sitemap as $sitemapEntry) {
+                    if ($urlCount >= $maxUrls) break;
+                    
+                    $loc = (string) $sitemapEntry->loc;
+                    if ($loc === '') continue;
+                    
+                    // Fetch sub-sitemap
+                    try {
+                        $subResponse = $http->get($loc, ['Accept' => 'application/xml, text/xml']);
+                        if ($subResponse->code >= 200 && $subResponse->code < 300) {
+                            $subXml = simplexml_load_string($subResponse->body);
+                            if ($subXml && isset($subXml->url)) {
+                                foreach ($subXml->url as $url) {
+                                    if ($urlCount >= $maxUrls) break;
+                                    
+                                    $subLoc = (string) $url->loc;
+                                    if ($subLoc === '') continue;
+                                    
+                                    $parsedUrl = parse_url($subLoc);
+                                    $path = isset($parsedUrl['path']) ? trim($parsedUrl['path'], '/') : '';
+                                    
+                                    if ($path === '' || $path === 'index.php') {
+                                        $title = 'Home';
+                                    } else {
+                                        $segments = explode('/', $path);
+                                        $lastSegment = end($segments);
+                                        $title = ucwords(str_replace(['-', '_'], ' ', $lastSegment));
+                                    }
+                                    
+                                    $sitemap[] = '- ' . $title . ': ' . $subLoc;
+                                    $urlCount++;
+                                }
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        // Skip sub-sitemap if it fails
+                        continue;
+                    }
+                }
+            }
+            
+            // If we got some URLs, return them
+            if (!empty($sitemap)) {
+                return implode("\n", $sitemap);
+            }
+            
+            // Otherwise fall back to building from menu
+            return self::buildSitemap();
+            
+        } catch (\Throwable $e) {
+            // Fall back to building from menu if external sitemap fails
+            return self::buildSitemap();
+        }
     }
 }
