@@ -91,8 +91,15 @@
     out = headingify(out);
     out = blockquoteify(out);
     
-    // Apply inline emphasis (bold/italic)
+    // Apply inline emphasis (bold/italic) - but protect placeholders
     out = applyInlineMd(out);
+
+    // Restore code blocks BEFORE list processing
+    // Restore inline code first
+    out = out.replace(/\[\[\[INLINECODE_(\d+)\]\]\]/g, function (_, idx) {
+      const code = inlineCodes[Number(idx)] || '';
+      return '<code>' + escapeHtml(code) + '<\/code>';
+    });
 
     // Restore fenced code blocks
     out = out.replace(/\[\[\[CODEBLOCK_(\d+)\]\]\]/g, function (_, idx) {
@@ -108,12 +115,6 @@
 
     // Convert bullet lists
     out = listify(out);
-
-    // Restore inline code placeholders
-    out = out.replace(/\[\[\[INLINECODE_(\d+)\]\]\]/g, function (_, idx) {
-      const code = inlineCodes[Number(idx)] || '';
-      return '<code>' + escapeHtml(code) + '<\/code>';
-    });
 
     // Convert remaining text blocks/newlines into paragraphs and <br>
     out = paragraphify(out);
@@ -224,12 +225,28 @@
   // Inline emphasis: bold (**, __) and italic (*, _) with simple rules
   function applyInlineMd(str) {
     let s = String(str);
+    
+    // Protect placeholders from being processed
+    const placeholders = [];
+    s = s.replace(/\[\[\[(?:CODEBLOCK|INLINECODE|AUTOLINK)_\d+\]\]\]/g, function(match) {
+      placeholders.push(match);
+      return '%%%PLACEHOLDER_' + (placeholders.length - 1) + '%%%';
+    });
+    
     // Bold - match ** or __ 
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
-    // Italic - match single * or _ (avoid matching bold)
-    s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
-    s = s.replace(/(^|[^_])_([^_]+)_(?!_)/g, '$1<em>$2</em>');
+    
+    // Italic - only match when it's clearly intended as emphasis
+    // Don't match underscores in the middle of words (like INLINECODE_0)
+    s = s.replace(/(\s|^)\*([^*\n]+)\*(\s|$|[.,!?;:])/g, '$1<em>$2</em>$3');
+    s = s.replace(/(\s|^)_([^_\n]+)_(\s|$|[.,!?;:])/g, '$1<em>$2</em>$3');
+    
+    // Restore placeholders
+    s = s.replace(/%%%PLACEHOLDER_(\d+)%%%/g, function(_, idx) {
+      return placeholders[Number(idx)] || '';
+    });
+    
     return s;
   }
 
@@ -276,9 +293,16 @@
     const openHeight = parseInt(instance.getAttribute('data-open-height') || '500', 10);
     const openHeightPercent = parseInt(instance.getAttribute('data-open-height-percent') || '50', 10);
     const buttonLabel = instance.getAttribute('data-button-label') || 'Knowledgebase';
+    const darkMode = instance.getAttribute('data-dark-mode') === '1';
+    
     try {
-      console.debug('[Bears AI Chatbot] init', { moduleId, ajaxUrl, position, offsetBottom, offsetSide });
+      console.debug('[Bears AI Chatbot] init', { moduleId, ajaxUrl, position, offsetBottom, offsetSide, darkMode });
     } catch (e) {}
+    
+    // Apply dark mode if enabled
+    if (darkMode) {
+      instance.classList.add('bears-dark-mode');
+    }
 
     // Apply offsets via CSS variables
     instance.style.setProperty('--bears-offset-bottom', offsetBottom + 'px');
@@ -347,18 +371,66 @@
       bubble.className = 'bubble';
       if (role === 'bot') {
         bubble.innerHTML = formatAnswer(String(text || ''));
+        // Add copy buttons to code blocks
+        addCopyButtons(bubble);
       } else {
         bubble.textContent = String(text || '');
       }
       wrap.appendChild(bubble);
       messages.appendChild(wrap);
-      // Auto-scroll to bottom
-      messages.scrollTop = messages.scrollHeight;
+      // Auto-scroll to bottom with slight delay for animation
+      setTimeout(() => {
+        messages.scrollTop = messages.scrollHeight;
+      }, 100);
+    }
+
+    // Add copy functionality to code blocks
+    function addCopyButtons(container) {
+      const codeBlocks = container.querySelectorAll('pre');
+      codeBlocks.forEach(pre => {
+        const btn = document.createElement('button');
+        btn.className = 'bears-copy-btn';
+        btn.textContent = 'Copy';
+        btn.type = 'button';
+        btn.onclick = function() {
+          const code = pre.querySelector('code');
+          const text = code ? code.textContent : pre.textContent;
+          navigator.clipboard.writeText(text).then(() => {
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+              btn.textContent = 'Copy';
+              btn.classList.remove('copied');
+            }, 2000);
+          }).catch(() => {
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+              document.execCommand('copy');
+              btn.textContent = 'Copied!';
+              btn.classList.add('copied');
+              setTimeout(() => {
+                btn.textContent = 'Copy';
+                btn.classList.remove('copied');
+              }, 2000);
+            } catch (e) {
+              btn.textContent = 'Failed';
+            }
+            document.body.removeChild(textarea);
+          });
+        };
+        pre.appendChild(btn);
+      });
     }
 
     let thinkingIndicator = null;
 
-    function setLoading(loading) {
+    function setLoading(loading, status) {
       if (loading) {
         // Disable and animate the send button
         sendBtn.setAttribute('disabled', 'disabled');
@@ -368,20 +440,31 @@
         }
         sendBtn.innerHTML = '<span style="opacity: 0.8;">Sending...</span>';
         
-        // Add thinking indicator in the chat
-        thinkingIndicator = document.createElement('div');
-        thinkingIndicator.className = 'message bot';
-        thinkingIndicator.innerHTML = `
-          <div class="bears-thinking-indicator">
-            <span class="bears-thinking-text">Researching</span>
-            <div class="bears-thinking-dots">
-              <span></span>
-              <span></span>
-              <span></span>
+        // Add or update thinking indicator in the chat
+        if (!thinkingIndicator) {
+          thinkingIndicator = document.createElement('div');
+          thinkingIndicator.className = 'message bot';
+          thinkingIndicator.innerHTML = `
+            <div class="bears-thinking-indicator">
+              <span class="bears-thinking-text">Researching</span>
+              <div class="bears-thinking-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
             </div>
-          </div>
-        `;
-        messages.appendChild(thinkingIndicator);
+          `;
+          messages.appendChild(thinkingIndicator);
+        }
+        
+        // Update status text if provided
+        if (status) {
+          const textElement = thinkingIndicator.querySelector('.bears-thinking-text');
+          if (textElement) {
+            textElement.textContent = status;
+          }
+        }
+        
         messages.scrollTop = messages.scrollHeight;
       } else {
         // Remove loading state from button
@@ -423,6 +506,10 @@
         });
 
         try { console.debug('[Bears AI Chatbot] response', { status: res.status, ok: res.ok }); } catch (e) {}
+        
+        // Update indicator to show we're processing the response
+        setLoading(true, 'Processing');
+        
         // Joomla com_ajax wraps responses in an envelope: { success, data, messages }
         // Our helper returns an object inside data. Unwrap it here.
         const raw = await res.json();
@@ -432,6 +519,8 @@
         if (payload && typeof payload === 'object') {
           if (payload.success && (payload.answer || payload.answer === '')) {
             try { console.info('[Bears AI Chatbot] answer', { length: (payload.answer || '').length }); } catch (e) {}
+            // Small delay to show "Processing" before displaying the answer
+            await new Promise(resolve => setTimeout(resolve, 300));
             appendMessage('bot', payload.answer);
           } else if (payload.error) {
             let err = 'Error: ' + payload.error;
@@ -463,10 +552,34 @@
     }
 
     sendBtn.addEventListener('click', sendMessage);
+    
+    // Handle Enter key and auto-resize
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
+      }
+    });
+    
+    // Auto-resize textarea as user types
+    input.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+    
+    // Keyboard shortcut to open chat (Ctrl/Cmd + /)
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        if (instance.classList.contains('bears-aichatbot--closed')) {
+          openChat();
+        } else {
+          input.focus();
+        }
+      }
+      // ESC to close
+      if (e.key === 'Escape' && instance.classList.contains('bears-aichatbot--open')) {
+        closeChat();
       }
     });
   }
