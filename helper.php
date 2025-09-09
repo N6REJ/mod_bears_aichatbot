@@ -114,7 +114,7 @@ class ModBearsAichatbotHelper
 
         // System prompt includes the KB context from Joomla articles
         $systemPrompt = ($strict ? (
-            "You are a Bearsampp knowledge base assistant. Answer using ONLY the content inside <kb>. If the information is not fully supported by <kb>, respond exactly: 'I don't know based on the provided dataset.' Do not use prior knowledge, do not browse the web, and do not guess.\n\n"
+            "You are a knowledge base assistant for this Joomla site. Answer using ONLY the content inside <kb>. If the information is not fully supported by <kb>, respond exactly: 'I don't know based on the provided dataset.' Do not use prior knowledge, do not browse the web, and do not guess.\n\n"
             . "IMPORTANT INSTRUCTIONS:\n"
             . "1. Use only the <kb> content for facts and instructions.\n"
             . "2. When referencing pages, only use URLs present in the site structure below.\n"
@@ -122,7 +122,7 @@ class ModBearsAichatbotHelper
             . "4. Format links as clickable Markdown: [Link Text](URL)\n"
             . "5. NEVER make up URLs or content not present in <kb> or the site structure.\n"
         ) : (
-            "You are a helpful AI assistant for a Joomla website. Use ONLY the provided knowledge base context when possible. If the context lacks the answer, say you don't know and suggest related topics.\n\n"
+            "You are a helpful AI assistant for this Joomla site. Use ONLY the provided knowledge base context when possible. If the context lacks the answer, say you don't know and suggest related topics.\n\n"
             . "IMPORTANT INSTRUCTIONS:\n"
             . "1. When referencing pages, use the actual URLs from the site structure provided below.\n"
             . "2. The website URL is: " . $siteUrl . "\n"
@@ -479,25 +479,7 @@ class ModBearsAichatbotHelper
             }
         }
 
-        // Built-in minimal KB for BearSampp queries (strict mode only) when no relevant matches were found
-        if ($strict) {
-            $msg = mb_strtolower(trim($userMessage));
-            if (preg_match('/\bbears\s*ampp\b|\bbearsampp\b/', $msg)) {
-                // Determine if the current context contains any BearSampp-relevant terms
-                $contextJoin = mb_strtolower(implode("\n", $contextParts));
-                $hasRelevantKw = (mb_strpos($contextJoin, 'bearsampp') !== false || mb_strpos($contextJoin, 'bears ampp') !== false);
-                if (!$hasRelevantKw) {
-                    $builtin = 'Title: BearSampp Overview' . "\n" . 'Content:' . "\n" .
-                               'BearSampp is a Windows-based local web development stack. It bundles web server(s), PHP, a database server, and common developer tools to run PHP applications on localhost. Typical components include Apache (and/or Nginx), PHP (multiple versions with extensions), MariaDB/MySQL, phpMyAdmin, OpenSSL for HTTPS, Xdebug, Composer, and Node.js/npm. It provides a tray/control panel to start/stop services, switch PHP versions, manage virtual hosts, configure ports, and create local SSL certificates for development.';
-                    $len = mb_strlen($builtin);
-                    if ($total + $len <= $maxTotal) {
-                        $contextParts[] = $builtin;
-                        $total += $len;
-                        self::$lastContextStats['article_count']++; // count built-in as a KB entry
-                    }
-                }
-            }
-        }
+
 
         if (empty($contextParts)) {
             self::$lastContextStats['note'] = self::$lastContextStats['note'] ?: 'No knowledge available from selected sources.';
