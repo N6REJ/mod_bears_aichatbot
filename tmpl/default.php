@@ -39,7 +39,7 @@ $offsetSide   = (int) $params->get('chat_offset_side', 20);
         </div>
         <div class="bears-aichatbot-input">
             <input type="text" class="bears-aichatbot-text" id="bears-aichatbot-input-<?php echo $moduleId; ?>" placeholder="<?php echo Text::_('MOD_BEARS_AICHATBOT_PLACEHOLDER'); ?>" />
-            <button class="bears-aichatbot-send" id="bears-aichatbot-send-<?php echo $moduleId; ?>"><?php echo Text::_('MOD_BEARS_AICHATBOT_SEND'); ?></button>
+            <button class="bears-aichatbot-send btn btn-primary" id="bears-aichatbot-send-<?php echo $moduleId; ?>"><?php echo Text::_('MOD_BEARS_AICHATBOT_SEND'); ?></button>
         </div>
     </div>
 </div>

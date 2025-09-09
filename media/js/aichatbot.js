@@ -6,7 +6,7 @@
 .bears-aichatbot--closed .bears-aichatbot-window{display:none}
 .bears-aichatbot--open .bears-aichatbot-toggle{display:none}
 .bears-aichatbot--open .bears-aichatbot-window{width:var(--bears-open-width, min(400px,90vw));height:var(--bears-open-height, 70vh);resize:both;overflow:auto}
-.bears-aichatbot-toggle{width:56px;height:56px;border-radius:50%;background:#0b74de;color:#fff;border:none;box-shadow:0 6px 18px rgba(0,0,0,.2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px}
+.bears-aichatbot-toggle{display:flex;align-items:center;justify-content:center}
 .bears-aichatbot-header{position:relative}
 .bears-aichatbot-close{position:absolute;right:8px;top:8px;background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer}
 /* middle side positions */
@@ -14,7 +14,7 @@
 .bears-aichatbot[data-position="middle-left"]{left:var(--bears-offset-side,20px);top:50%;transform:translateY(-50%)}
 /* vertical toggle for middle positions */
 .bears-aichatbot[data-position="middle-right"] .bears-aichatbot-toggle,
-.bears-aichatbot[data-position="middle-left"] .bears-aichatbot-toggle{writing-mode:vertical-rl;text-orientation:mixed;width:42px;height:auto;padding:10px 8px;border-radius:10px;font-size:14px}
+.bears-aichatbot[data-position="middle-left"] .bears-aichatbot-toggle{writing-mode:vertical-rl;text-orientation:mixed}
 @media (max-width: 767px){.bears-aichatbot{display:none !important}}
 /* formatted message elements */
 .bears-aichatbot .bubble a{color:#0b74de;text-decoration:underline;word-break:break-all}
@@ -30,7 +30,7 @@
       document.head.appendChild(style);
     } catch(e) {}
   }
-  // Formatting helpers to render AI responses with basic Markdown and clickable links
+  // Formatting helpers to render AI responses with full Markdown support
   function formatAnswer(text) {
     if (!text) return '';
     let placeholderIndex = 0;
@@ -42,11 +42,24 @@
       return token;
     });
 
+    // Convert Markdown autolinks <url> to placeholders (outside code)
+    const autoLinks = [];
+    out = out.replace(/<((?:https?|mailto):[^\s>]+)>/g, function (_, url) {
+      const token = '[[[AUTOLINK_' + (autoLinks.length) + ']]]';
+      autoLinks.push(url);
+      return token;
+    });
+
     // Escape HTML for remaining text
     out = escapeHtml(out);
 
-    // Inline code `...`
-    out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Inline code `...` - protect with placeholders
+    const inlineCodes = [];
+    out = out.replace(/`([^`]+)`/g, function (_, code) {
+      const token = '[[[INLINECODE_' + inlineCodes.length + ']]]';
+      inlineCodes.push(code);
+      return token;
+    });
 
     // Markdown links [text](url)
     out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1<\/a>');
@@ -54,14 +67,56 @@
     // Autolink any remaining plain URLs
     out = autolink(out);
 
+    // Restore autolink placeholders
+    out = out.replace(/\[\[\[AUTOLINK_(\d+)\]\]\]/g, function (_, idx) {
+      const url = autoLinks[Number(idx)] || '';
+      const safeHref = url.replace(/\"/g, '&quot;');
+      return '<a href="' + safeHref + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(url) + '<\/a>';
+    });
+
+    // Extended Markdown conversions
+    // Unescape common Markdown escapes
+    out = unescapeMarkdownEscapes(out);
+    
+    // Horizontal rules (---, ***, ___)
+    out = out.replace(/^(?:\s*)(?:[-*_]){3,}\s*$/gm, '<hr>');
+    
+    // Images ![alt](url)
+    out = out.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, '<img src="$2" alt="$1">');
+    
+    // Strikethrough ~~text~~
+    out = out.replace(/~~([^~]+)~~/g, '<del>$1<\/del>');
+    
+    // Headings and blockquotes
+    out = headingify(out);
+    out = blockquoteify(out);
+    
+    // Apply inline emphasis (bold/italic)
+    out = applyInlineMd(out);
+
     // Restore fenced code blocks
     out = out.replace(/\[\[\[CODEBLOCK_(\d+)\]\]\]/g, function (_, idx) {
       const code = blocks[Number(idx)] || '';
       return '<pre><code>' + escapeHtml(code) + '<\/code><\/pre>';
     });
 
-    // Turn leading dash/star lines into simple lists
+    // Normalize escaped ordered list markers like "1\."
+    out = unescapeOrderedListMarkers(out);
+
+    // Convert numbered lists 1. 2. ... into <ol>
+    out = orderedListify(out);
+
+    // Convert bullet lists
     out = listify(out);
+
+    // Restore inline code placeholders
+    out = out.replace(/\[\[\[INLINECODE_(\d+)\]\]\]/g, function (_, idx) {
+      const code = inlineCodes[Number(idx)] || '';
+      return '<code>' + escapeHtml(code) + '<\/code>';
+    });
+
+    // Convert remaining text blocks/newlines into paragraphs and <br>
+    out = paragraphify(out);
 
     return out;
   }
@@ -101,6 +156,116 @@
     return out.join('\n');
   }
 
+  function orderedListify(html) {
+    const lines = String(html).split(/\r?\n/);
+    const out = [];
+    let inList = false;
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i];
+      const m = ln.match(/^\s*(\d+)[\.)]\s+(.*)$/);
+      if (m) {
+        if (!inList) { out.push('<ol>'); inList = true; }
+        out.push('<li>' + m[2] + '</li>');
+      } else {
+        if (inList) { out.push('</ol>'); inList = false; }
+        out.push(ln);
+      }
+    }
+    if (inList) out.push('</ol>');
+    return out.join('\n');
+  }
+
+  function unescapeOrderedListMarkers(str) {
+    // Turn patterns like "1\. " into "1. " produced by LLM escaping
+    return String(str).replace(/(\d+)\\\./g, '$1.');
+  }
+
+  // Unescape common Markdown escapes like \* \_ \~ \[ \] etc.
+  function unescapeMarkdownEscapes(str) {
+    return String(str).replace(/\\([\\`*_~\[\](){}#+.!-])/g, '$1');
+  }
+
+  // Convert ATX-style headings (# .. ###### ..) per line
+  function headingify(html) {
+    return String(html).replace(/^\s{0,3}(#{1,6})\s+(.+)$/gm, function (_, hashes, txt) {
+      const lvl = Math.min(Math.max(hashes.length, 1), 6);
+      return '<h' + lvl + '>' + txt.trim() + '</h' + lvl + '>';
+    });
+  }
+
+  // Convert blockquotes; lines starting with '>' or '&gt;' are grouped
+  function blockquoteify(html) {
+    const lines = String(html).split(/\r?\n/);
+    const out = [];
+    let inBQ = false; let buf = [];
+    function flush() { 
+      if (inBQ) { 
+        out.push('<blockquote>' + buf.join('<br>') + '</blockquote>'); 
+        buf = []; 
+        inBQ = false; 
+      } 
+    }
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i];
+      const t = ln.trim();
+      // Check for both > and &gt; (escaped version)
+      if (/^(?:&gt;|>)\s?/.test(t)) { 
+        inBQ = true; 
+        buf.push(t.replace(/^(?:&gt;|>)\s?/, '')); 
+      } else { 
+        flush(); 
+        out.push(ln); 
+      }
+    }
+    flush();
+    return out.join('\n');
+  }
+
+  // Inline emphasis: bold (**, __) and italic (*, _) with simple rules
+  function applyInlineMd(str) {
+    let s = String(str);
+    // Bold - match ** or __ 
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+    // Italic - match single * or _ (avoid matching bold)
+    s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+    s = s.replace(/(^|[^_])_([^_]+)_(?!_)/g, '$1<em>$2</em>');
+    return s;
+  }
+
+  function paragraphify(html) {
+    const lines = String(html).split(/\r?\n/);
+    const out = [];
+    let para = [];
+    const isBlockLine = (ln) => /^(<\s*\/?\s*(ul|ol|li|pre|code|table|thead|tbody|tr|td|th|blockquote|h[1-6]|hr)\b|<\s*\/\s*(ul|ol|pre|table|blockquote|h[1-6]|hr))/i.test(ln.trim());
+
+    function flushPara() {
+      if (!para.length) return;
+      const content = para.join('<br>');
+      out.push('<p>' + content + '</p>');
+      para = [];
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i];
+      const trimmed = ln.trim();
+      if (!trimmed) {
+        // Blank line: paragraph break
+        flushPara();
+        continue;
+      }
+      if (isBlockLine(trimmed)) {
+        // Block element: break paragraph and output as-is
+        flushPara();
+        out.push(trimmed);
+      } else {
+        para.push(trimmed);
+      }
+    }
+    flushPara();
+    return out.join('\n');
+  }
+
   function init(instance) {
     const ajaxUrl = instance.getAttribute('data-ajax-url');
     const moduleId = instance.getAttribute('data-module-id');
@@ -133,7 +298,7 @@
 
     // Create toggle (bubble) and header close button
     const toggle = document.createElement('button');
-    toggle.className = 'bears-aichatbot-toggle';
+    toggle.className = 'bears-aichatbot-toggle btn btn-primary';
     toggle.setAttribute('aria-label', 'Open chat');
     toggle.title = 'Chat';
     // Vertical labeled toggle for middle positions
@@ -191,14 +356,46 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
+    let thinkingIndicator = null;
+
     function setLoading(loading) {
       if (loading) {
+        // Disable and animate the send button
         sendBtn.setAttribute('disabled', 'disabled');
-        sendBtn.dataset.prevText = sendBtn.textContent;
-        sendBtn.textContent = '...';
+        sendBtn.classList.add('loading');
+        if (!sendBtn.dataset.prevText) {
+          sendBtn.dataset.prevText = sendBtn.textContent;
+        }
+        sendBtn.innerHTML = '<span style="opacity: 0.8;">Sending...</span>';
+        
+        // Add thinking indicator in the chat
+        thinkingIndicator = document.createElement('div');
+        thinkingIndicator.className = 'message bot';
+        thinkingIndicator.innerHTML = `
+          <div class="bears-thinking-indicator">
+            <span class="bears-thinking-text">Researching</span>
+            <div class="bears-thinking-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        `;
+        messages.appendChild(thinkingIndicator);
+        messages.scrollTop = messages.scrollHeight;
       } else {
+        // Remove loading state from button
         sendBtn.removeAttribute('disabled');
-        if (sendBtn.dataset.prevText) sendBtn.textContent = sendBtn.dataset.prevText;
+        sendBtn.classList.remove('loading');
+        if (sendBtn.dataset.prevText) {
+          sendBtn.textContent = sendBtn.dataset.prevText;
+        }
+        
+        // Remove thinking indicator
+        if (thinkingIndicator && thinkingIndicator.parentNode) {
+          thinkingIndicator.remove();
+          thinkingIndicator = null;
+        }
       }
     }
 

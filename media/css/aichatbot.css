@@ -1,4 +1,18 @@
 /* Bears AI Chatbot Styles */
+:root {
+  /* Default values for CSS custom properties - can be overridden via JavaScript */
+  --bears-offset-side: 20px;
+  --bears-offset-bottom: 20px;
+  --bears-open-width: min(400px, 90vw);
+  --bears-open-height: 70vh;
+  
+  /* Template color fallbacks - these will be overridden by template's actual values */
+  /* Bootstrap 5 variables (if template doesn't define them) */
+  --bs-primary: #0d6efd;
+  --bs-primary-text: #fff;
+  --bs-link-color: #0d6efd;
+}
+
 .bears-aichatbot {
   position: fixed;
   z-index: 9999;
@@ -27,8 +41,9 @@
 }
 
 .bears-aichatbot-header {
-  background: #5CA0FF;
-  color: #fff;
+  /* Use template's primary color or fallback to a neutral blue */
+  background: var(--bs-primary, #4078C0);
+  color: var(--bs-primary-text, #fff);
   padding: 10px 12px;
 }
 
@@ -55,17 +70,39 @@
   border-radius: 14px;
   line-height: 1.4;
   word-wrap: break-word;
-  white-space: pre-wrap;
+  white-space: normal; /* avoid extra gaps around block elements in bot messages */
 }
+/* Preserve user-entered line breaks only for user messages */
+.message.user .bubble { white-space: pre-wrap; }
+.message.bot .bubble { white-space: normal; max-width: 100%; }
+
+/* Tighter default spacing for formatted content */
+.bears-aichatbot .bubble p { margin: 0.35em 0; }
+.bears-aichatbot .bubble ul,
+.bears-aichatbot .bubble ol {
+  padding-left: 0.5em;
+}
+/* Continuous numbering across separate step lists using a shared counter */
+.bears-aichatbot .bubble { counter-reset: bears-step; }
+/* Only affect top-level ordered lists in the bubble */
+.bears-aichatbot .bubble > ol { list-style: none; padding-left: 1.6em; margin: 0.25em 0 0.35em; }
+.bears-aichatbot .bubble > ol > li { position: relative; margin: 0.25em 0; }
+.bears-aichatbot .bubble > ol > li::before {
+  content: counter(bears-step) '. ';
+  counter-increment: bears-step;
+  position: absolute;
+  left: -1.6em;
+}
+.bears-aichatbot .bubble pre { margin: 0.25em 0; }
 .message.user .bubble {
-  background: #5CA0FF;
-  color: #fff;
+  /* Use template's primary color for user messages */
+  background: var(--bs-primary, #4078C0);
+  color: var(--bs-primary-text, #fff);
   border-bottom-right-radius: 4px;
 }
 .message.bot .bubble {
   background: #f2f5f8;
-  color: #111;
-  border-bottom-left-radius: 4px;
+  border-radius: 4px;
 }
 
 .bears-aichatbot-input {
@@ -82,12 +119,178 @@
   border-radius: 8px;
 }
 
+/* Send button loading state */
 .bears-aichatbot-send {
-  background: #0b74de;
-  color: #fff;
-  border: none;
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
+  position: relative;
+  min-width: 80px;
+  overflow: hidden;
 }
-.bears-aichatbot-send:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.bears-aichatbot-send:disabled { 
+  opacity: 0.9; 
+  cursor: not-allowed; 
+}
+
+/* Loading animation for send button */
+.bears-aichatbot-send.loading::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: bears-loading-sweep 1.5s infinite;
+}
+
+@keyframes bears-loading-sweep {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Thinking indicator in messages */
+.bears-thinking-indicator {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: #f2f5f8;
+  border-radius: 14px;
+  margin: 10px 0;
+  max-width: 200px;
+}
+
+.bears-thinking-text {
+  margin-right: 10px;
+  color: var(--bs-primary, #4078C0);
+  font-weight: 500;
+  animation: bears-typing 0.8s infinite alternate;
+}
+
+/* Animated dots */
+.bears-thinking-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.bears-thinking-dots span {
+  width: 8px;
+  height: 8px;
+  background: var(--bs-primary, #4078C0);
+  border-radius: 50%;
+  animation: bears-dot-pulse 1.4s infinite ease-in-out;
+}
+
+.bears-thinking-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.bears-thinking-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.bears-thinking-dots span:nth-child(3) {
+  animation-delay: 0s;
+}
+
+@keyframes bears-dot-pulse {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+/* Typing animation for the thinking text */
+@keyframes bears-typing {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+/* Extended Markdown formatting */
+/* Headings - minimal overrides, mostly inherit from template */
+.bears-aichatbot .bubble h1,
+.bears-aichatbot .bubble h2,
+.bears-aichatbot .bubble h3,
+.bears-aichatbot .bubble h4,
+.bears-aichatbot .bubble h5,
+.bears-aichatbot .bubble h6 {
+    /* Only adjust margins for chat bubble context */
+    margin-top: 0.5em;
+    margin-bottom: 0.35em;
+    /* Everything else (font-size, font-weight, line-height, color) inherits from template */
+}
+
+/* Blockquotes */
+.bears-aichatbot .bubble blockquote {
+    margin: 0.5em 0;
+    padding: 0.5em 1em;
+    border-left: 3px solid #d0d7de;
+    color: #656d76;
+    background: #f6f8fa;
+}
+
+/* Horizontal rules */
+.bears-aichatbot .bubble hr {
+    margin: 1em 0;
+    border: none;
+    border-top: 1px solid #d0d7de;
+}
+
+/* Emphasis */
+.bears-aichatbot .bubble strong {
+    font-weight: 600;
+}
+
+.bears-aichatbot .bubble em {
+    font-style: italic;
+}
+
+.bears-aichatbot .bubble del {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+/* Images */
+.bears-aichatbot .bubble img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0.5em 0;
+}
+
+/* Links */
+.bears-aichatbot .bubble a {
+    /* Use template's link color or fallback */
+    color: var(--bs-link-color, #0b74de);
+    text-decoration: underline;
+    word-break: break-all;
+}
+
+/* Code blocks */
+.bears-aichatbot .bubble pre {
+    background: #f6f8fa;
+    padding: 8px;
+    border-radius: 6px;
+    overflow: auto;
+}
+
+/* Inline code */
+.bears-aichatbot .bubble code {
+    background: #f2f4f7;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Lists */
+.bears-aichatbot .bubble li {
+    margin: 0.25em 0;
+}
