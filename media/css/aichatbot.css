@@ -501,14 +501,27 @@
   }
 }
 
-/* High contrast mode support */
-@media (prefers-contrast: high) {
+/* High contrast mode support - using more compatible syntax */
+@media screen and (-ms-high-contrast: active), screen and (-ms-high-contrast: black-on-white), screen and (-ms-high-contrast: white-on-black) {
   .bears-aichatbot-window {
     border: 2px solid;
   }
   
   .bubble {
     border: 1px solid;
+  }
+}
+
+/* Modern high contrast support for newer browsers */
+@supports (prefers-contrast: high) {
+  @media (prefers-contrast: high) {
+    .bears-aichatbot-window {
+      border: 2px solid;
+    }
+    
+    .bubble {
+      border: 1px solid;
+    }
   }
 }
 

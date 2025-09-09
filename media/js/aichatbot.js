@@ -291,7 +291,6 @@
     const offsetSide = parseInt(instance.getAttribute('data-offset-side') || '20', 10);
     const openWidth = parseInt(instance.getAttribute('data-open-width') || '400', 10);
     const openHeight = parseInt(instance.getAttribute('data-open-height') || '500', 10);
-    const openHeightPercent = parseInt(instance.getAttribute('data-open-height-percent') || '50', 10);
     const buttonLabel = instance.getAttribute('data-button-label') || 'Knowledgebase';
     const darkMode = instance.getAttribute('data-dark-mode') === '1';
     
@@ -312,9 +311,8 @@
 
     // Apply open width/height as CSS variables for dynamic sizing
     instance.style.setProperty('--bears-open-width', `min(${openWidth}px, 90vw)`);
-    // Use percentage of viewport height by default (openHeightPercent), fallback to px if provided
-    const hPercent = Math.min(Math.max(openHeightPercent, 10), 100);
-    instance.style.setProperty('--bears-open-height', `min(${openHeight}px, ${hPercent}vh)`);
+    // Use pixel height but cap at 90% of viewport for mobile
+    instance.style.setProperty('--bears-open-height', `min(${openHeight}px, 90vh)`);
 
     // Inject styles and set initial state (closed)
     ensureStyles();

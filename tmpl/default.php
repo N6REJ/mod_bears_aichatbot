@@ -24,7 +24,6 @@ $offsetSide   = (int) $params->get('chat_offset_side', 20);
      data-offset-side="<?php echo (int) $offsetSide; ?>"
      data-open-width="<?php echo (int) $params->get('open_width', 400); ?>"
      data-open-height="<?php echo (int) $params->get('open_height', 500); ?>"
-     data-open-height-percent="<?php echo (int) $params->get('open_height_percent', 50); ?>"
      data-button-label="<?php echo htmlspecialchars($params->get('button_label', 'Knowledgebase'), ENT_QUOTES, 'UTF-8'); ?>"
      data-dark-mode="<?php echo (int) $params->get('dark_mode', 0); ?>">
     <div class="bears-aichatbot-window">
