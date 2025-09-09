@@ -59,7 +59,7 @@
                     <option value="1">JYES</option>
                     <option value="0">JNO</option>
                 </field>
-                <field name="sitemap_url" 
+                    <field name="sitemap_url"
                        type="text" 
                        label="MOD_BEARS_AICHATBOT_SITEMAP_URL_LABEL" 
                        description="MOD_BEARS_AICHATBOT_SITEMAP_URL_DESC" 
